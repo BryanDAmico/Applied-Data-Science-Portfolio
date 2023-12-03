@@ -1,0 +1,2435 @@
+---
+title: "Bryan D'Amico - IST 707 Final Project"
+output: word_document
+date: "2022-11-28"
+---
+
+## Introduction 
+
+Wine is one of the oldest inventions that is still enjoyed around the world today. While the process used to make it has changed over time based on the creation of new technologies and automation, the basic steps remain the same. When most people think of the origins of wine, they probably think of ancient Greece or Rome. However, the earliest evidence dates back to 7,000 BC in China where people enjoyed fermented grape based drinks, and the first true wine was drank in Georgia in 6,000 BC. It was not until much later that the Greeks and Romans began their wine-making legacies. If it were not for the widespread trade routes created by the Phoenician civilization, the Greeks and Romans would not have encountered wine at all. 
+
+While the Romans may have not invented wine, they certainly took great steps in perfecting it. They were the first to use barrels and glass bottles in the wine making and storing process, and many of their techniques are still used as the fundamentals of wine-making today. When the Roman Empire fell, their process was preserved by the Catholic Church until it was widely spread throughout the modern world. When wine-making became popular in America, it was viewed as having much lower quality until the late 20th century. In the last 50 years, vineyards have been opening and operating all throughout the United States with the most activity on the east and west coasts.
+
+There are five basic steps in the wine-making process. 
+
+1. The grapes are picked
+2. The grapes are crushed
+3. The grape juice is fermented into wine
+4. The wine is aged in barrels
+5. The wine is bottled for sale
+
+It may be obvious that the type of grape used in the wine-making process would influence the quality and flavor, but the specific process used will influence that as well. For example, the sugar levels in the grapes can change depending on if they are harvested during the day or at night. While the goal is to completely filter the juice before fermentation, if any particles are left behind it could influence the flavor as well. Fermentation requires the addition of yeast, and there are many different yeast strains and recipes that can change the final wine product. There are also many different options for aging the wine. The wine can be aged for different lengths of time, in different types of barrels, and with those barrels having varying amounts of char on the wood.
+
+With all of these different steps and types of grapes available, it is easy to see how so many different types of wines are created. All of those types have varying degrees of quality and different flavors as well. It is a fairly common experience to try two different wines of the same type, such as Chardonnay, and really like one and not the like the other at all. But why does this occur? If a person enjoys the taste of Chardonnay why don't they like every bottle of Chardonnay? It all boils down to the basic chemical properties that make up each wine. Even with strict controls, these will vary from bottle to bottle and vineyard to vineyard. Many vineyards will experiment with the values of the chemical properties to try to create new flavors and improved quality. Some properties have a tendency to influence the flavor of wine more than others, but can those properties be used to predict the quality of a finished product?
+
+(reference: https://storymaps.arcgis.com/stories/c5a01856223745d19ee5a2f640624b83)
+
+(reference: https://winefolly.com/deep-dive/how-wine-is-made-in-pictures/)
+
+## Analysis and Models
+
+The purpose of this investigation is to understand how the physiochemical properties of white wine influence its quality and then predict the quality of white wine based on the values of those properties. This section will feature an exploration of the data set along with visualizations of all of the variables. After the data set has been cleaned and prepared for analysis, a variety of supervised and unsupervised machine learning techniques will be applied to the data. 
+
+### About the Data 
+
+Before discussing the data set, the following packages are loaded into R to be used for visualizations and analyses.
+
+```{r setup, warning = FALSE, message = FALSE}
+#Load in all the libraries.
+library(tidyverse)
+library(e1071)
+library(randomForest)
+library(randomForestExplainer)
+library(factoextra)
+library(cluster)
+library(caret)
+library(kernlab)
+library(rpart.plot)
+library(rpart)
+library(rattle)
+library(party)
+library(FactoMineR)
+library(Rtsne)
+library(plotly)
+library(class)
+library(naivebayes)
+library(knitr)
+library(GGally)
+library(classInt)
+library(arules)
+library(arulesViz)
+library(reshape2)
+library(BBmisc)
+library(dendextend)
+library(proxy)
+library(tm)
+library(slam)
+```
+
+The data set is based on the results of quality tests of the Portuguese Vinho Verde white wine. This wine comes from a small region in Northern Portugal and is known for its great value and popularity as a "summer wine". The input variables are the values of the various physiochemical properties of the wine as measured by precise scientific tests. The output variable is the quality of the wine rated on a scale from 0 to 10 by a panel of wine experts. The final quality score is the median of at least three different expert scores. 
+
+(reference: https://winefolly.com/deep-dive/vinho-verde-the-perfect-poolside-wine-from-portugal/)
+
+The white wine quality data set is stored in the UCI Machine Learning Repository and is sourced from Pablo Cortez of the University of Minho in Portugal in 2009.
+
+(citation: P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis.
+Modeling wine preferences by data mining from physicochemical properties. In Decision Support Systems, Elsevier, 47(4):547-553, 2009.)
+
+The data set is stored as a semi-colon delimited file. This means it must be read into R using the read_delim function, setting the delimiter parameter to be the semicolon.
+
+```{r}
+#Read in the data set.
+wine <- read_delim("~/Documents/Syracuse/Quarter 2/Applied Machine Learning/winequality-white.csv", delim = ";")
+
+#Show the structure of the data set.
+str(wine)
+```
+
+The data set contains 12 numeric variables. The first 11 variables are the input variables which contain the values of the 11 physiochemical properties included in the data set. The 12th variable is the output variable which is the wine quality score. 
+
+```{r}
+head(wine)
+```
+
+Viewing the first six rows of data gives an initial impression of the data. Each of the physiochemical property variables contains numerical data and the wine quality rating is also presented as a number between 0 and 10.
+
+```{r}
+#Number of rows and columns
+dim(wine)
+```
+
+There are 4,898 rows in the data set. Each row of the data represents a unique wine sample that was taste-tested by the expert panel.
+
+```{r}
+#Are there any missing values?
+sum(is.na(wine))
+
+wine[rowSums(is.na(wine)) > 0,]
+```
+
+This data set has no missing values. Every value for each physiochemical property was measured and recorded. Also, there are no wine samples that do not have a corresponding quality rating.
+
+Before any analysis, the column names of the data set will be cleaned. Presently, the column names are multiple words with spaces. These names are very unwieldy for writing efficient R code. Therefore, each column will be renamed without including any spaces.
+
+```{r}
+#Rename the columns so there are no spaces for ease of use.
+wine <- wine %>%
+  rename(FixedAcidity = 'fixed acidity',
+         VolatileAcidity = 'volatile acidity',
+         CitricAcid = 'citric acid',
+         ResidSugar = 'residual sugar',
+         Chlorides = 'chlorides',
+         FreeSO2 = 'free sulfur dioxide',
+         TotalSO2 = 'total sulfur dioxide',
+         Density = 'density',
+         Sulfates = 'sulphates',
+         PercentAlc = 'alcohol',
+         WineQuality = 'quality'
+  )
+```
+
+The following table summarizes the high level information for each of the variables. 
+
+```{r, cache = TRUE}
+#Table summarizing variable information
+variable_names <- c("Fixed Acidity", "Volatile Acidity", "Citric Acid", "Residual Sugar", "Chlorides", "Free Sulfur Dioxide", "Total Sulfur Dioxide", "Density", "pH", "Sulfates", "Percent Alcohol", "Wine Quality")
+variable_description <- c("The measure of tartaric acid in g/L", "The measure of acetic acid in g/L", "The measure of citric acid in g/L", "The measure of sugar after fermentation in g/L", "The measure of salt in g/L", "The measure of free SO2 in mg/L", "The total measure of SO2 in mg/L", "The density of the wine in g/ml", "The pH rating of the wine on a scale of 0 to 14", "The measure of potassium sulfate in g/L", "The percent alcohol content of the wine", "The quality rating of the wine on a scale of 0 to 10")
+variable_table <- data.frame(variable_names, variable_description)
+kable(variable_table, col.names = c("Variable", "Description"), caption = "Description of each variable")
+```
+
+Next, each variable will be discussed in detail and the distribution of its values as they pertain to this data set will be visualized. These discussions will include a description of each physiochemical property along with details of how it impacts the wine, while giving a sense of the typical values of each that are found in wine.
+
+#### Input Variable 1: Fixed Acidity
+
+The fixed acidity variable contains the measure of the amount of tartaric acid present in the wine in grams per liter. This acid is non-volatile, meaning it does not just evaporate on its own. Tartaric acid reduces the pH value of the wine, provides a tart flavor, and has some influence on the feel and color of the wine.
+
+(reference:  https://chemicalstore.com/tartaric-acid-in-wine/#:~:text=Tartaric%20acid%20is%20used%20in,feel%2C%20and%20color%20of%20wines)
+
+```{r}
+summary(wine$FixedAcidity)
+```
+
+The summary function provides a numerical synopsis of the distribution of the values for the fixed acidity variable. At minimum, there are 3.8 grams per liter of tartaric acid, and at maximum, there are 14.2 grams per liter of tartaric acid. However, the first and third quartiles reveal that 50% of the the wine samples have between 6.3 and 7.3 grams of tartaric acid per liter.
+
+```{r, cache = TRUE}
+#Box plot of the distribution of fixed acidity
+wine %>%
+  ggplot(aes(x=FixedAcidity)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Tartaric Acid (g/L)") +
+  ggtitle("Fig.1a Distribution of Measures of Tartaric Acid")
+
+#Bar graph showing distribution of fixed acidity
+wine %>%
+  ggplot(aes(x=FixedAcidity)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Tartaric Acid (g/L)", y = "Count of Wine Samples") +
+  ggtitle("Fig.1b Distribution of Measures of Tartaric Acid")
+```
+
+Figures 1a and 1b visualize the distribution of the values of this variable in two different ways. The box plot reveals the presence of several outliers, represented as the dots on the left and right sides of the whiskers. The bar graph reveals that the greatest number of wine samples have around 6 to 7 grams of tartaric acid per liter, while only very few samples have greater than 9 grams per liter. The distribution is fairly close to normal, with maybe only a very slight skew to the right.
+
+#### Input Variable 2: Volatile Acidity 
+
+The volatile acidity variable contains the measure of the amount of acetic acid present in the wine in grams per liter. Acetic acid is produced during or after the fermentation process due to the activity of yeast cells. Too much acetic acid can lead to a vinegar taste.
+
+(reference: https://www.randoxfood.com/why-is-testing-for-acetic-acid-important-in-winemaking/#:~:text=Acetic%20acid%20is%20a%20two,small%20amount%20of%20acetic%20acid)
+
+```{r}
+summary(wine$VolatileAcidity)
+```
+
+The levels of acetic acid tend to be much lower than those of the tartaric acid. The minimum value is 0.08 grams per liter and the maximum value is 1.1 grams per liter. Half of the wine samples have acetic acid levels between 0.21 and 0.32 grams per liter. 
+
+```{r, cache = TRUE}
+# Box plot of the distribution of volatile acidity
+wine %>%
+  ggplot(aes(x=VolatileAcidity)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Acetic Acid (g/L)") +
+  ggtitle("Fig.2a Distribution of Measures of Acetic Acid")
+
+#Bar graph showing the distribution of volatile acidity
+wine %>%
+  ggplot(aes(x=VolatileAcidity)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Acetic Acid (g/L)", y = "Count of Wine Samples") +
+  ggtitle("Fig.2b Distribution of Measures of Acetic Acid")
+```
+
+Figures 2a and 2b visualize the distribution of the values of the volatile acidity variable. The box plot reveals that there are many outliers, but all of them are values that are greater than the rest of the values in the data set. The median acetic acid value is a little less than 0.3 grams per liter. The bar graph reveals that the great majority of the values are less than 0.3 grams per liter, with much fewer wine samples containing more than 0.6 grams per liter. This distribution is strongly skewed to the right.
+
+#### Input Variable 3: Citric Acid 
+
+The citric acid variable contains the measures of citric acid present in the wine in grams per liter. Citric acid increases the acidity of the wine, while adding flavor and freshness by removing excess iron. As the level of citric acid increases, the ability of the wine to keep longer is decreased.
+
+(reference: https://wineserver.ucdavis.edu/industry-info/enology/methods-and-techniques/common-chemical-reagents/citric-acid#:~:text=Citric%20acid%20is%20often%20added,acid%20is%20its%20microbial%20instability)
+
+```{r}
+summary(wine$CitricAcid)
+```
+
+Overall, the values of citric acid present in the wine samples are quite low. There are samples that contain no citric acid, and the maximum amount is only 1.66 grams per liter. Half of the wine samples contain between 0.27 and 0.39 grams per liter.
+
+```{r, cache = TRUE}
+#Box plot of the distribution of citric acid
+wine %>%
+  ggplot(aes(x=CitricAcid)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Citric Acid (g/L)") +
+  ggtitle("Fig.3a Distribution of Measures of Citric Acid")
+
+#Bar graph showing the distribution of citric acid
+wine %>%
+  ggplot(aes(x=CitricAcid)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Citric Acid (g/L)", y = "Count of Wine Samples") +
+  ggtitle("Fig.3b Distribution of Measures of Citric Acid")
+
+```
+
+Figures 3a and 3b show the distribution of the values of this variable. The box plot reveals an interesting trend in the data. While the majority of the wine samples have between 0 and 0.5 grams of citric acid per liter, there are outliers on both sides of the data. The maximum value is a fairly extreme outlier and is much greater than any of the other values. The bar graph also reveals that while the majority of wine samples contain about 0.3 grams per liter, there is a large secondary spike that occurs right below the value of 0.5 grams per liter. Overall, the distribution is skewed right because of the presence of the outliers in the upper half of the data.
+
+#### Input Variable 4: Residual Sugar 
+
+The residual sugar value contains the measures of sugar present in the wine in grams per liter. The residual sugar is the amount of naturally occurring grape sugars that remain in the wine after the fermentation process. Higher residual sugar levels result in sweeter wine. Typically, a dry wine will have between 0 and 4 grams of residual sugar per liter and a sweet wine will have greater than 35 grams of residual sugar per liter.
+
+(reference: https://whicherridge.com.au/blog/what-is-residual-sugar-in-wine/#:~:text=Sweetness%20in%20wine%20is%20called,the%20sweeter%20the%20wine%20is)
+
+```{r}
+summary(wine$ResidSugar)
+```
+
+The values of residual sugar have an extremely large range compared to the previous variables. The least amount of sugar is 0.6 grams per liter, resulting in a very dry wine, and the greatest amount of sugar is 65.8 grams per liter, resulting in a very sweet wine. Based on the definitions of dry and sweet wine, the median value of 5.2 reveals the data set is made up mostly of dry wines and wines that are semi-sweet, but towards the drier end of this in-between categorization. The following plots reveal there is only one wine sample that meets the strict criteria of being a sweet wine. This has caused the data to be very skewed to the right.
+
+```{r, cache = TRUE}
+#Box plot of the distribution of residual sugar
+wine %>%
+  ggplot(aes(x=ResidSugar)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Residual Sugar (g/L)") +
+  ggtitle("Fig.4a Distribution of Measures of Residual Sugar")
+
+#Bar graph showing the distribution of residual sugar
+wine %>%
+  ggplot(aes(x=ResidSugar)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Residual Sugar (g/L)", y = "Count of Wine Samples") +
+  ggtitle("Fig.4b Distribution of Measures of Residual Sugar")
+```
+
+Figures 4a and 4b confirm what the summary function initially revealed. The great majority of the data is grouped towards the drier end of the wine spectrum. There is a giant cluster of very dry wines, followed by a fairly uniform group of those drier semi-sweet wines. The distribution is very strongly skewed to the right.
+
+#### Input Variable 5: Chlorides 
+
+The chlorides variable measures the amount of sodium chloride, also known as salt, that is present in the wine in grams per liter. The amount of salt will affect the taste of the wine to some degree.
+
+```{r}
+summary(wine$Chlorides)
+```
+
+The summary function reveals that there is very little salt present in wine. At minimum there is just 0.009 grams per liter and at maximum there is also just 0.346 grams per liter. This makes sense based on real world knowledge of wines, seeing as there are no "salty wines".
+
+```{r, cache = TRUE}
+#Box plot of the distribution of chlorides
+wine %>%
+  ggplot(aes(x=Chlorides)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Sodium Chloride (g/L)") +
+  ggtitle("Fig.5a Distribution of Measures of Sodium Chloride")
+
+#Bar graph showing the distribution of chlorides
+wine %>%
+  ggplot(aes(x=Chlorides)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Sodium Chloride (g/L)", y = "Count of Wine Samples") +
+  ggtitle("Fig.5b Distribution of Measures of Sodium Chloride")
+```
+
+Figure 5a reveals that this variable features a massive amount of outliers. The entire box and whisker portion of the plot is contained within 0 and 0.1 grams per liter. Figure 5b confirms that there is a giant grouping of wine samples between about 0.02 and 0.07 grams per liter. The distribution is extremely skewed to the right, with some samples extending past 0.3 grams per liter.
+
+#### Input Variable 6: Free Sulfur Dioxide 
+
+The free sulfur dioxide (SO2) variable contains the measures of the amount of free SO2 present in the wine in milligrams per liter. Free SO2 refers to SO2 that is not bound to any other compounds in the wine. This helps prevent microbial growth and oxidation that would cause the wine to spoil, but too much results in a bitter or metallic flavor.
+
+(reference: https://www.extension.iastate.edu/wine/total-sulfur-dioxide-why-it-matters-too/#:~:text=In%20winemaking%2C%20the%20use%20of,wine%20from%20oxidation%20and%20spoilage)
+
+```{r}
+summary(wine$FreeSO2)
+```
+
+The summary function reveals that the free SO2 values also have a very wide range. The minimum value is 2 milligrams per liter, while the maximum value is 289 milligrams per liter. The median, however, is 34 milligrams per liter which indicates that the 289 mg/L wine sample is most likely a fairly extreme outlier.
+
+```{r, cache = TRUE}
+#Box plot of the distribution of free SO2
+wine %>%
+  ggplot(aes(x=FreeSO2)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Free SO2 (mg/L)") +
+  ggtitle("Fig.6a Distribution of Measures of Free SO2")
+
+#Bar graph showing the distribution of free SO2
+wine %>%
+  ggplot(aes(x=FreeSO2)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Free SO2 (mg/L)", y = "Count of Wine Samples") +
+  ggtitle("Fig.6b Distribution of Measures of Free SO2")
+```
+
+Figure 6a confirms the hypothesis about the maximum value. It is an extreme outlier. Almost all of the data is contained between 0 and 100 milligrams per liter. There are also only outliers in the upper half of the data. Figure 6b reveals that the great majority of values occur between 0 and 50 milligrams per liter. The distribution is again skewed to the right because of the outliers in the upper half of the data. 
+
+#### Input Variable 7: Total Sulfur Dioxide 
+
+The total sulfur dioxide variable contains the measures of total SO2 present in the wine in milligrams per liter. The total SO2 is the sum of the amount of free SO2 and SO2 that is bound to other chemical compounds. Too much SO2 can affect the taste of the wine.
+
+(reference: https://www.extension.iastate.edu/wine/total-sulfur-dioxide-why-it-matters-too/#:~:text=In%20winemaking%2C%20the%20use%20of,wine%20from%20oxidation%20and%20spoilage)
+
+```{r}
+summary(wine$TotalSO2)
+```
+
+Since the total SO2 level is directly related to the free SO2 level (total SO2 = free SO2 + bound SO2), it is unsurprising that these values are greater than the free SO2 values. The median value of total SO2 is 134 milligrams per liter, while the minimum is 9 milligrams per liter, and the maximum is 440 milligrams per liter. 
+
+```{r, cache = TRUE}
+#Box plot of the distribution of total SO2
+wine %>%
+  ggplot(aes(x=TotalSO2)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Total SO2 (mg/L)") +
+  ggtitle("Fig.7a Distribution of Measures of Total SO2")
+
+#Bar graph showing the distribution of total SO2
+wine %>%
+  ggplot(aes(x=TotalSO2)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Total SO2 (mg/L)", y = "Count of Wine Samples") +
+  ggtitle("Fig.7b Distribution of Measures of Total SO2")
+```
+
+Although total and free SO2 are related, figures 7a and 7b reveal that the distribution of total SO2 is a bit different than the distribution of free SO2. There are now outliers on both ends of the range of data. There are also far fewer outliers, and the maximum value is closer to the rest of the data than it was for the distribution of free SO2. The bar graph visualizes how the majority of the data is between 100 and 200 milligrams per liter and the distribution is just slightly skewed right because of the presence of a few outliers.
+
+#### Input Variable 8: Density 
+
+The density variable contains the measures of density of the wine samples in grams per milliliter. Typically, wine juice is more dense than water by about 8 to 9%, and alcohol is less dense than water by 20%. This results in the overall density of wine being generally less than that of water. 
+
+(reference: http://www.creativeconnoisseur.com/newsletter/files/497deafe6be1b2efc87df8ac6071e459-162.html)
+
+```{r}
+summary(wine$Density)
+```
+
+The range of the density measures of the wine samples is very narrow. This may result in this variable not being very impactful towards determining wine quality because it varies so little. The minimum density is 0.9871 grams per milliliter, while the maximum density is 1.039 grams per milliliter. As expected, the mean is slightly less than 1, which represents the density of water.
+
+```{r, cache = TRUE}
+#Box plot of the distribution of density
+wine %>%
+  ggplot(aes(x=Density)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Density (g/ml)") +
+  ggtitle("Fig.8a Distribution of Measures of Density")
+
+#Bar graph showing the distribution of density
+wine %>%
+  ggplot(aes(x=Density)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Density (g/ml)", y = "Count of Wine Samples") +
+  ggtitle("Fig.8b Distribution of Measures of Density")
+```
+
+Figure 8a confirms that the majority of the data is right between 0.99 and 1.00 grams per milliliter. There are just three outliers, all in the upper half of the data, with the maximum value being a particularly extreme outlier. Since wine juice is more dense than water, and alcohol is less dense, it can be concluded that these wine samples must have relatively low percent alcohol measurements on average. Figure 8b reveals an approximately normal distribution with just the few outliers as previously mentioned. 
+
+#### Input Variable 9: pH
+
+The pH variable contains the pH values of the wine samples measured on the typical 0 to 14 logarithmic scale. On this scale, 0 is the most acidic and 14 is the most basic. Wines, in general, range from about 2.5 to 4.5 meaning they are fairly acidic beverages. The taste of the wine is affected by the pH value.
+
+(reference: https://winefolly.com/deep-dive/understanding-acidity-in-wine/)
+
+```{r}
+summary(wine$pH)
+```
+
+The summary function reveals that these white wine samples are on the more acidic side of the typical wine pH range. The minimum value is 2.72 while the maximum value is just 3.82. Also, half of the wine samples have a pH between 3.09 and 3.28.
+
+```{r, cache = TRUE}
+#Box plot of the distribution of pH
+wine %>%
+  ggplot(aes(x=pH)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of pH") +
+  ggtitle("Fig.9a Distribution of Measures of pH")
+
+#Bar graph showing the distribution of pH
+wine %>%
+  ggplot(aes(x=pH)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of pH", y = "Count of Wine Samples") +
+  ggtitle("Fig.9b Distribution of Measures of pH")
+```
+
+There are outliers on both sides of the data as shown in figure 9a. The great majority of data is between 3.0 and 3.3. Figure 9b reveals a distribution is that is very close to a normal distribution. Even though there are outliers, they are balanced on the upper and lower ends of the data, allowing the distribution to retain its normal bell curve shape.
+
+#### Input Variable 10: Sulfates
+
+The sulfates variable contains the measurements of the amount of potassium sulfate present in the wine in grams per liter. Potassium sulfate is a wine additive that serves as an antimicrobial and antioxidant agent. This is added to the wine only to help it stay fresh for longer and is not intended to directly influence the taste of the wine. Although, the amount of potassium sulfate that is added can affect how it tatses.
+
+```{r}
+summary(wine$Sulfates)
+```
+
+The summary function reveals that white wines contain low levels of potassium sulfate. The minimum value is 0.22 grams per liter, while the maximum value is just 1.08 grams per liter. Half of the wine samples contain between 0.41 and 0.55 grams of potassium sulfate per liter.
+
+```{r, cache = TRUE}
+#Box plot of the distribution of sulfates
+wine %>%
+  ggplot(aes(x=Sulfates)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Potassium Sulfate (g/L)") +
+  ggtitle("Fig.10a Distribution of Measures of Potassium Sulfate")
+
+#Bar graph showing the distribution of sulfates
+wine %>%
+  ggplot(aes(x=Sulfates)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Potassium Sulfate (g/L)", y = "Count of Wine Samples") +
+  ggtitle("Fig.10b Distribution of Measures of Potassium Sulfate")
+```
+
+Figure 10a uncovers the presence of several outliers in the upper half of the data. The values of these outliers range from about 0.8 to a little more than 1.0 grams per liter. The majority of the data is between 0.4 and 0.6 grams per liter. Figure 10b reveals that the distribution is fairly skewed to the right because of those outliers. 
+
+#### Input Variable 11: Percent Alcohol
+
+The percent alcohol value records the percent of alcohol by volume in each of the wine samples. Lower percentages would mean the wine is referred to as being "weaker" while greater percentages would mean the wine is referred to as being "stronger". As the percent alcohol increases, one would taste the alcohol more strongly over the natural flavors of the wine juice, therefore affecting one's enjoyment of the wine.
+
+```{r}
+summary(wine$PercentAlc)
+```
+
+The results of the summary function are expected based on common knowledge of wines sold in retail stores. The minimum percent alcohol is 8% and the maximum percent alcohol is 14.2%. Half of the wine samples contain between 10.4% and 11.4% alcohol.
+
+```{r, cache = TRUE}
+#Box plot of the distribution of alcohol percentage
+wine %>%
+  ggplot(aes(x=PercentAlc)) +
+  geom_boxplot(color = "black", fill = "lightblue") +
+  theme(axis.text.y = element_blank()) +
+  labs(x = "Measure of Alcohol Percentage") +
+  ggtitle("Fig.11a Distribution of Measures of Alcohol Percentage")
+
+#Bar graph showing the distribution of alcohol percentage
+wine %>%
+  ggplot(aes(x=PercentAlc)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  labs(x = "Measure of Alcohol Percentage", y = "Count of Wine Samples") +
+  ggtitle("Fig.11b Distribution of Measures of Alcohol Percentage")
+
+```
+
+Figure 11a reveals that the data contains no outliers, while the great majority of wine samples contain between 9% and about 11.5% alcohol. Although there are no outliers, the distribution is stil skewed to the right. Figure 11b shows how the number of wine samples gently decreases as the alcohol percentage is increased.
+
+#### Output Variable: Wine Quality
+
+The wine quality variable contains the quality ratings of the wine samples on a scale of 0 to 10, where 0 is the worst score possible and 10 is the best score possible. Each of these scores is the median of at least 3 separate scores each awarded to the wine after being tasted by a wine expert. These ratings should be viewed as an overall indication of how much someone would enjoy drinking the wine. It is also worth noting that this rating scale is not the same as the typical American grade scale where anything less than a 6 or 7 would be perceived as being bad. A ranking of 5 should be viewed as the true separator between better and worse wines. 
+
+The wine quality ratings are grouped and the number of wine samples with each rating is displayed.
+
+```{r, cache = TRUE}
+#How many wine samples received each rating.
+WineQualitySummary <- wine %>% 
+  group_by(WineQuality) %>%
+  summarize(Number = n())
+WineQualitySummary
+```
+
+This summary reveals that the data set contains no wines that would be classified as extremely poor quality (less than a 3 rating) and that there are no "perfect" wines (a 10 rating). The number of wine samples receiving each rating also decreases moving outward from a rating of 6. This means the great majority of samples are of "ok" quality receiving a 5 or 6 rating, and there are much fewer samples of "good" wines receiving a rating of 7 or more, and "poor" wines receiving a rating of 4 or less. This reveals a potential limitation of the data set. With so few wines that are considered very good or very bad, the machine learning algorithms may have difficulty classifying these wines. Also, this summary provides some rationale for how the outliers should be dealt with. Since there are very few 3s and 9s, it reasons that these ratings may result from the data points that were outliers in some of the variables. Since the models should still have the opportunity to attempt to predict these very good and bad wines, the outlier values need to be left in the data set.
+
+```{r, cache = TRUE}
+#Visualizing the data.
+wine %>% 
+  group_by(WineQuality) %>%
+  summarize(Number = n()) %>%
+  ggplot(aes(x = WineQuality, y = Number)) +
+  geom_col(color = "black", fill = "lightblue") +
+  scale_x_continuous("Wine Quality Rating", breaks = c(0:10), limits = c(0,10)) + 
+  labs(y = "Count of Wine Samples") +
+  ggtitle("Fig.12 Distribution of Wine Quality Ratings")
+```
+
+Figure 12 provides a visualization of the distribution of wine quality scores. Although the number of very good and very bad samples are lacking, the distribution is very close to normal. 
+
+Based on the wine rating process it makes sense that the scores are distributed in this way. Since each of these scores is the median of at least three separate scores, they tend towards the middle. The only way a wine would score a 10 is if every expert that tasted it awarded it a 10 which one could conceive would be a very rare event. The same is true of having a wine that would score a 0, 1, or 2. Those wines would have to be so bad that it is more likely that the batch would be pulled from the production process after internal testing, than it would to be bottled and sold.
+
+#### Visualizing the Overall Data Set by Quality Rating
+
+The following groups of plots show the distribution of each variable separated by the wine quality rating. The plots are stacked vertically and a red line is drawn through the median value. The median is selected as the representative measure of central tendency because the majority of variables had a skewed distribution and/or outliers.
+
+The first group of plots displays the distribution of the fixed acidity variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = FixedAcidity)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.13 Distribution of Fixed Acidity by Wine Quality") +
+  labs(x = "Tartaric Acid in g/L", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+  geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(FixedAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(FixedAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(FixedAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(FixedAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(FixedAcidity)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(FixedAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(FixedAcidity)), color = "red")
+```
+
+These plots reveal that the median value remains fairly constant regardless of the wine quality rating. It is interesting that both the highest rated and lowest rated groups of wine samples have slightly higher fixed acidity than the other groups of wine samples. Looking at the distributions closely, this may be more of a product of a lack of data rather than some underlying pattern.
+
+The following group of plots displays the distribution of the volatile acidity variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = VolatileAcidity)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.14 Distribution of Volatile Acidity by Wine Quality") +
+  labs(x = "Acetic Acid in g/L", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+    geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(VolatileAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(VolatileAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(VolatileAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(VolatileAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(VolatileAcidity)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(VolatileAcidity)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(VolatileAcidity)), color = "red")
+```
+
+Again, the median volatile acidity value remains fairly constant across the wine quality ratings, with most of the medians at a value just below 0.3 grams per liter.
+
+The following group of plots displays the distribution of the citric acid variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = CitricAcid)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.15 Distribution of Citric Acid by Wine Quality") +
+  labs(x = "Citric Acid in g/L", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+    geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(CitricAcid)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(CitricAcid)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(CitricAcid)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(CitricAcid)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(CitricAcid)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(CitricAcid)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(CitricAcid)), color = "red")
+```
+
+The medain value of citric acid remains fairly constant regardless of wine quality rating. Although, this group again exhibits the behavior where the median values of the best and worst wines are slightly greater than the middle quality wines.
+
+The following group of plots displays the distribution of the residual sugar variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = ResidSugar)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.16 Distribution of Residual Sugar by Wine Quality") +
+  labs(x = "Residual Sugar in g/L", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+    geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(ResidSugar)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(ResidSugar)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(ResidSugar)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(ResidSugar)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(ResidSugar)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(ResidSugar)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(ResidSugar)), color = "red")
+```
+
+The median value of residual sugar shows some variation depending on the wine quality rating. The wines rated a 5 or a 6 have slightly greater medians than the other groups of wine samples.
+
+The following group of plots displays the distribution of the chlorides variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = Chlorides)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.17 Distribution of Chlorides by Wine Quality") +
+  labs(x = "Sodium Chloride in g/L", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+    geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(Chlorides)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(Chlorides)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(Chlorides)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(Chlorides)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(Chlorides)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(Chlorides)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(Chlorides)), color = "red")
+```
+
+The median values of the chlorides variable are fairly constant as well. Although, the middle quality wines have a slightly greater median value than the other groups.
+
+The following group of plots displays the distribution of the free SO2 variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = FreeSO2)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.18 Distribution of Free SO2 by Wine Quality") +
+  labs(x = "Free SO2 in mg/L", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+    geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(FreeSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(FreeSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(FreeSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(FreeSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(FreeSO2)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(FreeSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(FreeSO2)), color = "red")
+```
+
+The medians of the free SO2 variable are fairly uniform except for the wine samples with a quality rating of 4. The median value of this group is a bit lower than the other groups. 
+
+The following group of plots displays the distribution of the total SO2 variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = TotalSO2)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.19 Distribution of Total SO2 by Wine Quality") +
+  labs(x = "Total SO2 in mg/L", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+    geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(TotalSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(TotalSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(TotalSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(TotalSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(TotalSO2)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(TotalSO2)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(TotalSO2)), color = "red")
+```
+
+The median values of the total SO2 values show the greatest variation so far. The median values for the wines rated a 4, 7, 8, or 9 are very similar. The median values for the wines rated a 3 or a 5 are also more similar. The median value for the wines rated a 6 is between the median values of the two previously mentioned groups.
+
+The following group of plots displays the distribution of the density variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = Density)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.20 Distribution of Density by Wine Quality") +
+  labs(x = "Density in g/ml", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+    geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(Density)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(Density)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(Density)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(Density)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(Density)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(Density)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(Density)), color = "red")
+```
+
+The median values of the density variable increase as the rating increases to 5, then decrease as the rating increases past 5 up to 9. it is interesting that the median value for the wines rated a 5 is the greatest, while the median values for the more highly rated wines are lower.
+
+The following group of plots displays the distribution of the pH variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = pH)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.21 Distribution of pH by Wine Quality") +
+  labs(x = "pH", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+  geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(pH)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(pH)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(pH)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(pH)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(pH)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(pH)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(pH)), color = "red")
+```
+
+The median values for the pH take on somewhat of an inverted bell curve shape. The poorest and highest quality wines have the greatest pH values, while the middle quality wines have lower pH values.
+
+The following group of plots displays the distribution of the sulfates variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = Sulfates)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.22 Distribution of Sulfates by Wine Quality") +
+  labs(x = "Potassium Sulfate in g/L", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+    geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(Sulfates)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(Sulfates)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(Sulfates)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(Sulfates)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(Sulfates)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(Sulfates)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(Sulfates)), color = "red")
+```
+
+The median values for the sulfates variable are fairly constant. The poorest quality wines and the highest quality wines have median sulfate levels that are a bit lower than the median values of the middle quality wines.
+
+The last group of plots displays the distribution of the percent alcohol variable by wine quality rating.
+
+```{r, cache = TRUE}
+wine %>%
+  ggplot(aes(x = PercentAlc)) +
+  geom_bar(aes(fill = WineQuality, color = WineQuality)) +
+  ggtitle("Fig.23 Distribution of Percent Alcohol by Wine Quality") +
+  labs(x = "Percent Alcohol", y = "Count of Wine Samples") +
+  facet_wrap(~WineQuality, ncol = 1) +
+    geom_vline(data = wine[wine$WineQuality == 3,], aes(xintercept = median(PercentAlc)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 4,], aes(xintercept = median(PercentAlc)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 5,], aes(xintercept = median(PercentAlc)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 6,], aes(xintercept = median(PercentAlc)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 7,], aes(xintercept = median(PercentAlc)), color = "red") +
+geom_vline(data = wine[wine$WineQuality == 8,], aes(xintercept = median(PercentAlc)), color = "red") +
+  geom_vline(data = wine[wine$WineQuality == 9,], aes(xintercept = median(PercentAlc)), color = "red")
+```
+
+The median values for percent alcohol vary more than any of the other variables. The lower rated wines, 3 to 5, have lower median alcohol contents, while the higher rated wines, 7 to 9, have higher median alcohol contents. This may reveal that the experts have a preference for stronger wines over weaker ones.
+
+Based on the analysis of the variation of medians in each variable separated by wine quality group, there is no discernible correlation between wine quality and any one individual physiochemical property. Therefore, any clustering or classifying will depend on the relationship between the values of multiple properties for each wine sample, rather than focusing on just one.
+
+#### Analysis of Variable Correlations
+
+Based on the definitions of each variable, there are a few that stand out as candidates for those that might be linearly correlated to one another. The following plot displays a heat map of the correlation between the variables in the data. The Pearson correlation coefficient, r, is calculated and then squared to get the r^2 value which is then rounded to 2 places past the decimal point. These values are placed into a matrix and then visualized.
+
+```{r, cache = TRUE}
+corr_matrix <- round(cor(wine)^2, 2)
+melt_corr_matrix <- melt(corr_matrix)
+ggplot(data = melt_corr_matrix, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  geom_text(aes(Var1, Var2, label = value), color = "white", size = 4) +
+  ggtitle("Fig.24 Correlation Matrix Heat Map") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  labs(x = "Variable 1", y = "Variable 2")
+```
+
+From the heat map, it is obvious that most of the variables are not correlated to one another. However, density and residual sugar as well as density and percent alcohol are fairly strongly correlated with respective r^2 values of 0.7 and 0.61. Also worth noting is that total SO2 and free SO2 are somewhat weakly correlated with an r^2 value of 0.38, and density is weakly correlated to total SO2 with an r^2 value of 0.28.
+
+### Cleaning and Preparing the Data Set for Analyses
+
+Since the wine quality variable is the output variable that will be the focus of all the analyses, it will be converted from a numeric variable to an ordered factor variable. This is necessary for all the types of models.
+
+```{r}
+wine$WineQuality <- ordered(wine$WineQuality)
+```
+
+Next, separate versions of the data set will be prepared based on the requirements for each type of model that will be used in the analysis.
+
+#### Cleaning and Preparing the Data for Association Rule Mining
+
+First the data set will be duplicated under a different name so the original data set can be used as the starting point for the other types of data preparation as well.
+
+```{r}
+#Copying the data set.
+wineAR <- wine
+```
+
+Next, the density variable will be removed for the association rule mining data set. All of the values exist in a very narrow range and it is strongly correlated with two other variables that are in the data set. The density is in essence a calculation of those other variables. For example, density is dependent on the proportion of wine juice vs. alcohol which is already represented by the percent alcohol content.
+
+```{r}
+#Feature Selection. Removing the density variable.
+wineAR <- wineAR %>%
+  select(-Density)
+```
+
+To perform association rule mining, all of the variables need to be discretized. This is the process of turning continuous variables into discrete variables by manually creating bins for the data values to be grouped into. Since there are seven different values for the wine quality variable, the other variables will be discretized into seven approximately equal sized bins. By matching the number of bins to number of different quality ratings, it will be interesting to see if certain bins always lead to certain quality ratings.
+
+```{r}
+#Need to discretize all other variables. Going to make 7 bins to match 7 wine quality values.
+
+#Discretize into approximately equal sized bins.
+FixedAcidityBreaks <- classIntervals(wineAR$FixedAcidity, n = 7, style = "quantile")
+FixedAcidityBreaks
+wineAR$FixedAcidity <- cut(wineAR$FixedAcidity, breaks = c(3.8, 6, 6.4,
+                                                           6.7, 6.9, 7.2,
+                                                           7.7, 14.3),
+                           labels = c("[3.8, 6)", "[6, 6.4)", "[6.4, 6.7)",
+                                      "[6.7, 6.9)", "[6.9, 7.2)", "[7.2, 7.7)",
+                                      "[7.7, 14.2]"),
+                           right = FALSE)
+
+VolatileAcidityBreaks <- classIntervals(wineAR$VolatileAcidity, n = 7, style = "quantile")
+VolatileAcidityBreaks
+wineAR$VolatileAcidity <- cut(wineAR$VolatileAcidity, breaks = c(0.08, 0.18, 0.22,
+                                                           0.25, 0.28, 0.31,
+                                                           0.37, 1.2),
+                           labels = c("[0.08, 0.18)", "[0.18, 0.22)", "[0.22, 0.25)",
+                                      "[0.25, 0.28)", "[0.28, 0.31)", "[0.31, 0.37)",
+                                      "[0.37, 1.1]"),
+                           right = FALSE)
+
+CitricBreaks <- classIntervals(wineAR$CitricAcid, n = 7, style = "quantile")
+CitricBreaks
+wineAR$CitricAcid <- cut(wineAR$CitricAcid, breaks = c(0, 0.24, 0.27,
+                                                      0.3, 0.33, 0.37,
+                                                      0.45, 1.67),
+                              labels = c("[0, 0.24)", "[0.24, 0.27)", "[0.27, 0.3)",
+                                         "[0.3, 0.33)", "[0.33, 0.37)", "[0.37, 0.45)",
+                                         "[0.45, 1.66]"),
+                              right = FALSE)
+
+SugarBreaks <- classIntervals(wineAR$ResidSugar, n = 7, style = "quantile")
+SugarBreaks
+wineAR$ResidSugar <- cut(wineAR$ResidSugar, breaks = c(0.6, 1.4, 1.9,
+                                                      4.1, 6.6, 8.9,
+                                                      12.8, 65.9),
+                              labels = c("[0.6, 1.4)", "[1.4, 1.9)", "[1.9, 4.1)",
+                                         "[4.1, 6.6)", "[6.6, 8.9)", "[8.9, 12.8)",
+                                         "[12.8, 65.8]"),
+                              right = FALSE)
+
+ChloridesBreaks <- classIntervals(wineAR$Chlorides, n = 7, style = "quantile")
+ChloridesBreaks
+wineAR$Chlorides <- cut(wineAR$Chlorides, breaks = c(0.009, 0.032, 0.037,
+                                                       0.041, 0.045, 0.049,
+                                                       0.055, 0.347),
+                         labels = c("[0.009, 0.032)", "[0.032, 0.037)", "[0.037, 0.041)",
+                                    "[0.041, 0.045)", "[0.045, 0.049)", "[0.049, 0.055)",
+                                    "[0.055, 0.346]"),
+                         right = FALSE)
+
+FreeSO2Breaks <- classIntervals(wineAR$FreeSO2, n = 7, style = "quantile")
+FreeSO2Breaks
+wineAR$FreeSO2 <- cut(wineAR$FreeSO2, breaks = c(2, 18, 25,
+                                                31, 36, 44,
+                                                53, 290),
+                         labels = c("[2, 18)", "[18, 25)", "[25, 31)",
+                                    "[31, 36)", "[36, 44)", "[44, 53)",
+                                    "[53, 289]"),
+                         right = FALSE)
+
+TotalSO2Breaks <- classIntervals(wineAR$TotalSO2, n = 7, style = "quantile")
+TotalSO2Breaks
+wineAR$TotalSO2 <- cut(wineAR$TotalSO2, breaks = c(9, 94, 112,
+                                                       126, 143, 162,
+                                                       185, 441),
+                         labels = c("[9, 94)", "[94, 112)", "[112, 126)",
+                                    "[126, 143)", "[143, 162)", "[162, 185)",
+                                    "[185, 440]"),
+                         right = FALSE)
+
+pHBreaks <- classIntervals(wineAR$pH, n = 7, style = "quantile")
+pHBreaks
+wineAR$pH <- cut(wineAR$pH, breaks = c(2.72, 3.03, 3.1,
+                                       3.15, 3.2, 3.26,
+                                       3.35, 3.83),
+                         labels = c("[2.72, 3.03)", "[3.03, 3.1)", "[3.1, 3.15)",
+                                    "[3.15, 3.2)", "[3.2, 3.26)", "[3.26, 3.35)",
+                                    "[3.35, 3.82]"),
+                         right = FALSE)
+
+SulfatesBreaks <- classIntervals(wineAR$Sulfates, n = 7, style = "quantile")
+SulfatesBreaks
+wineAR$Sulfates <- cut(wineAR$Sulfates, breaks = c(0.22, 0.38, 0.42,
+                                                       0.46, 0.49, 0.54,
+                                                       0.6, 1.09),
+                         labels = c("[0.22, 0.38)", "[0.38, 0.42)", "[0.42, 0.46)",
+                                    "[0.46, 0.49)", "[0.49, 0.54)", "[0.54, 0.6)",
+                                    "[0.6, 1.08]"),
+                         right = FALSE)
+
+AlcBreaks <- classIntervals(wineAR$PercentAlc, n = 7, style = "quantile")
+AlcBreaks
+wineAR$PercentAlc <- cut(wineAR$PercentAlc, breaks = c(8, 9.2, 9.5,
+                                                       10.1, 10.6, 11.2,
+                                                       12.1, 14.3),
+                         labels = c("[8, 9.2)", "[9.2, 9.5)", "[9.5, 10.1)",
+                                    "[10.1, 10.6)", "[10.6, 11.2)", "[11.2, 12.1)",
+                                    "[12.1, 14.2]"),
+                         right = FALSE)
+```
+
+Now all of the variables will be factors containing seven levels. 
+
+```{r}
+#Check the structure of the modified data frame.
+str(wineAR)
+```
+
+The following plots will display the distribution of how many of the wine samples fall into each bin. Each of the plots should feature a somewhat uniform distribution, although there will not be a perfectly equal amount of observations in each bin.
+
+```{r, cache = TRUE}
+#Visualization of discretized fixed acidity variable
+wineAR %>%
+  ggplot(aes(x = FixedAcidity)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.25 Distribution of Discretized Fixed Acidity Variable") +
+  labs(x = "Tartaric Acid in g/L", y = "Count of Wine Samples")
+```
+
+```{r, cache = TRUE}
+#Visualization of discretized volatile acidity variable
+wineAR %>%
+  ggplot(aes(x = VolatileAcidity)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.26 Distribution of Discretized Volatile Acidity Variable") +
+  labs(x = "Acetic Acid in g/L", y = "Count of Wine Samples")
+```
+
+```{r, cache = TRUE}
+#Visualization of discretized citric acid variable
+wineAR %>%
+  ggplot(aes(x = CitricAcid)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.27 Distribution of Discretized Citric Acid Variable") +
+  labs(x = "Citric Acid in g/L", y = "Count of Wine Samples")
+```
+
+```{r, cache = TRUE}
+#Visualization of discretized residual sugar variable
+wineAR %>%
+  ggplot(aes(x = ResidSugar)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.28 Distribution of Discretized Residual Sugar Variable") +
+  labs(x = "Residual Sugar in g/L", y = "Count of Wine Samples")
+```
+
+```{r, cache = TRUE}
+#Visualization of discretized chlorides variable
+wineAR %>%
+  ggplot(aes(x = Chlorides)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.29 Distribution of Discretized Chlorides Variable") +
+  labs(x = "Chlorides in g/L", y = "Count of Wine Samples")
+```
+
+```{r, cache = TRUE}
+#Visualization of discretized free SO2 variable
+wineAR %>%
+  ggplot(aes(x = FreeSO2)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.30 Distribution of Discretized Free SO2 Variable") +
+  labs(x = "Free SO2 in mg/L", y = "Count of Wine Samples")
+```
+
+```{r, cache = TRUE}
+#Visualization of discretized total SO2 variable
+wineAR %>%
+  ggplot(aes(x = TotalSO2)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.31 Distribution of Discretized Total SO2 Variable") +
+  labs(x = "Total SO2 in mg/L", y = "Count of Wine Samples")
+```
+
+```{r, cache = TRUE}
+#Visualization of discretized pH variable
+wineAR %>%
+  ggplot(aes(x = pH)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.32 Distribution of Discretized pH Variable") +
+  labs(x = "pH", y = "Count of Wine Samples")
+```
+
+```{r, cache = TRUE}
+#Visualization of discretized sulfates variable
+wineAR %>%
+  ggplot(aes(x = Sulfates)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.33 Distribution of Discretized Sulfates Variable") +
+  labs(x = "Potassium Sulfate in g/L", y = "Count of Wine Samples")
+```
+
+```{r, cache = TRUE}
+#Visualization of discretized percent alcohol variable
+wineAR %>%
+  ggplot(aes(x = PercentAlc)) +
+  geom_bar(color = "black", fill = "lightblue") +
+  ggtitle("Fig.34 Distribution of Discretized Percent Alcohol Variable") +
+  labs(x = "Percent Alcohol", y = "Count of Wine Samples")
+```
+
+These visualizations confirm that the bins are apporoximately equal in size, albeit with some expected variations. This data set is now ready to be used for the association rule mining analysis.
+
+#### Cleaning and Preparing the Data for Clustering Models
+
+Clustering models, such as k-Means Clustering and Hierarchical Agglomerative Clustering, require the data set to be entirely numeric. Returning to the original wine data set, the 11 input variables are numeric and the output variable is a factor. Since clustering is an unsupervised machine learning technique, it does not require pre-defined classes to create its groupings. Therefore, the wine quality ratings will be removed from the data set.
+
+First, another copy of the original data set is created before starting the data preparation process.
+
+```{r}
+#Create a copy of the data set
+wineCluster <- wine
+```
+
+Now, the wine quality column will be dropped from the data set. The wine quality column will be rejoined to the data set after each clustering model is created to visualize the results.
+
+```{r}
+#Remove the wine quality column.
+wineCluster <- wineCluster %>%
+  select(-WineQuality)
+```
+
+Checking the structure of the data set confirms that the wine quality column has been removed.
+
+```{r}
+#Check that wine quality column has been removed
+str(wineCluster)
+```
+
+Examining the first few rows of data shows that the wine quality ratings are no longer present.
+
+```{r}
+#Print the first 6 rows of the data set
+head(wineCluster)
+```
+
+Clustering models perform best when the data is normalized. Since the many of the distributions of the variables were skewed, the results of the clustering may be false if the data is left as it is. The normalize() function will be used. 
+
+```{r}
+wineCluster <- normalize(wineCluster, method = "standardize")
+```
+
+This will convert all variables to be on the same scale having approximate means of 0 and standard deviations of 1. This will aid in the distance calculations that clustering models use.
+
+```{r}
+sapply(wineCluster, mean)
+sapply(wineCluster, sd)
+```
+
+The data set is now cleaned and prepared for the clustering analysis.
+
+#### Cleaning and Preparing the Data for Classification Models
+
+Classification models are examples of supervised machine learning techniques. These models require a target class to predict based on the values of the input variables. In this case, the classes are the wine quality ratings. Classification models are very flexible in that they are able to take any type of variable as input. They only require that the class they are predicting is in the form of a factor variable.
+
+The original wine data set will be copied into two new data sets that will be used for the classification models. Two data sets are required because the distance based classification models require normalized data. The techniques that require the normalized data are the k-Nearest neighbor and support vector machine models.
+
+```{r}
+#Copy the wine data set for the classification models
+wineClassify <- wine
+
+#Copy and create data set for distance based classification models.
+wineClassifyDist <- wine
+wineClassifyDist <- wineClassifyDist %>%
+  select(-WineQuality)
+wineClassifyDist <- normalize(wineClassifyDist, method = "standardize")
+wineClassifyDist$WineQuality <- wine$WineQuality
+```
+
+The wine quality variable was already changed to a factor variable in the wine data set so that change is preserved in the new data sets.
+
+In order to assess the accuracy of the model's predictions, each data set must be separated into two data sets, one used to train the model and one used to test the model. The data sets will be split so that 70% of the data is placed into the training data set and 30% of the data is placed into the testing data set. This ratio will provide plenty of data for the model to learn from and to be assessed on. 
+
+In order to create the training and testing data, the createDataPartition function will be used. This function guarantees there will be an equal balance of each output category in the training and testing data. This process will also guarantee that the same data examples will be in each train and test set, with the only difference being that one data set contains the original values and one data set contains the normalized values.
+
+```{r, cache = TRUE}
+#Set seed to control randomization when forming training and testing data.
+set.seed(12345)
+
+#Creating a 70/30 split between training and testing data partitioning based on the wine quality rating.
+trainList <- createDataPartition(y = wineClassify$WineQuality, p = 0.70, list = FALSE)
+wineTrain <- wineClassify[trainList,]
+wineTest <- wineClassify[-trainList,]
+
+wineDistTrain <- wineClassifyDist[trainList,]
+wineDistTest <- wineClassifyDist[-trainList,]
+```
+
+The following summary displays the percentage of wine examples that are in each wine quality rating category. This will be compared to the percentages found in the training and testing data.
+
+```{r}
+round((summary(wineClassify$WineQuality) / nrow(wineClassify))*100,2)
+```
+
+The following summary displays the percentage of the training data that is made up of wine samples with each wine quality rating.
+
+```{r}
+#Percentage of training data by wine quality rating
+round((summary(wineTrain$WineQuality) / nrow(wineTrain))*100,2)
+round((summary(wineDistTrain$WineQuality) / nrow(wineDistTrain))*100,2)
+```
+
+The percentages of the wine samples by wine quality ratings are almost identical to those in the original data set before it was split into training and testing sets.
+
+The following summary displays the percentage of the testing data that is made up of wine samples with each wine quality rating.
+
+```{r}
+#Percentage of testing data by wine quality rating
+round((summary(wineTest$WineQuality) / nrow(wineTest))*100,2)
+round((summary(wineDistTest$WineQuality) / nrow(wineDistTest))*100,2)
+```
+
+The percentages for the testing data are extremely similar to those of the training data and the data set before it was split. This equal balance of the proportions of wine samples by wine quality rating in the training and test data is an ideal training and evaluation environment for the classification models. 
+
+The data set is now prepared for the classification analysis.
+
+### Models
+
+Several types of analyses and models will be created in an effort to see if the wine quality can be predicted by the physiochemical properties. First, an association rule mining analysis will be run to identify common associations and itemsets present in the data. Next, there will be an unsupervised machine learning analysis featuring K-means clustering and hierarchical agglomerative clustering to see if the models are able to recreate the same groups as what would be formed by grouping the data by wine quality rating. Lastly, there will be a supervised machine learning analysis featuring decision trees, random forests, support vector machine models, k nearest neighbor models, and naive Bayes models. For each unsupervised and supervised machine learning technique that is used, a final model will be selected based on accuracy and that model will be highlighted in the results section and compared to the other final models.
+
+#### Association Rule Mining Analysis
+
+Association rule mining takes an algorithmic approach to frequent pattern analysis. It will find rules in a set of transactions that predict the occurrence of an attribute. In this case, the values of the physiochemical properties will be linked to the values of other properties those wine samples are likely to have.
+
+Association rules are described in terms of itemsets. Each itemset is a collection of one or more items from the transaction data. In this case, each of the items is one of the bins that were created for each variable. Rules are primarily rated on three metrics: support, confidence, and lift.
+
+Support describes the frequency of the itemset in the data. A support of 0.10 means that the items occur in 10% of all the itemsets. Confidence describes how often items appear together. A confidence of 0.90 means that there's a 90% probability that items appear together given that one of the items appears. Lift describes how interesting the generated association rule is. Rules with a lift value of 1 describe itemsets where the appearance of one item does not affect the appearance of another item. Rules with a lift value greater than 1 describe itemsets where the appearance of one item increases the odds of the appearance of another item, but these pairs may not occur very often. Rules with a lift value less than 1 describe itemsets where each of the items occur very often, but almost never occur together.
+
+This analysis will involve three tasks. The first task is to uncover the top 10 rules ordered by support, confidence, and lift. The second task is to choose an interesting left hand side and see what the top 10 rules generated are. The metric these rules will be ordered by will be based off which list in the first task provided the most interesting results. The third task is to set the right hand side equal to different groupings of the wine quality ratings to see what characteristics lead to what quality of wine.
+
+Before generating the association rules, the wineAR data set must be converted to a transaction data set. 
+
+```{r}
+#Start Association Rule Mining
+wineTransaction <- transactions(wineAR, format = "wide")
+str(wineTransaction)
+```
+
+With the wine data converted to transaction data, the most frequently occurring items in the transactions can be visualized.
+
+```{r, cache = TRUE}
+itemFrequencyPlot(wineTransaction, topN = 20, type = "absolute")
+title("Most Frequent Items in Wine Transaction Data")
+```
+
+Unsurprisingly, wine quality ratings of 5 or 6 occur most often. There is an abundance of wines with these two ratings in the data set. The other items feature a mix of values for the different physiochemical properties.
+
+Before making the three top 10 lists, the support and confidence thresholds of the apriori algorithm must be tuned to generate a sufficient number of rules. If between 50 and 100 rules are generated, this should be enough to see different top 10 lists when the rules are ordered by the different metrics. Since there are so many different wine samples with unique combinations of values for their physiochemical properites, the support value will start at 0.1 and the confidence value at 0.9. The confidence value will be kept as high as possible to focus on generating only meaningful rules.
+
+```{r, cache = TRUE}
+wineRules <- apriori(wineTransaction, parameter = list(supp = 0.1, conf = 0.9))
+summary(wineRules)
+```
+
+The thresholds were too strict and were not met by any of the rules. The support metric will be lowered to 0.05 for the next attempt at generating association rules.
+
+```{r, cache = TRUE}
+wineRules <- apriori(wineTransaction, parameter = list(supp = 0.05, conf = 0.9))
+summary(wineRules)
+```
+
+These thresholds were still too strict. The support value will be lowered again, this time to 0.01.
+
+```{r, cache = TRUE}
+wineRules <- apriori(wineTransaction, parameter = list(supp = 0.01, conf = 0.9))
+summary(wineRules)
+```
+
+With a support value of 0.01, only one rule was generated. This may indicate the threshold is close to the value where many more rules will begin to meet the criteria. This time, the support value will be lowered to 0.005.
+
+```{r, cache = TRUE}
+wineRules <- apriori(wineTransaction, parameter = list(supp = 0.005, conf = 0.9))
+summary(wineRules)
+```
+
+This time, a set of 24 rules were generated. To increase the likelihood of seeing unique lists of rules when they ordered by the different metrics, a longer list would be better. The support value will be lowered one more time to 0.004.
+
+```{r, cache = TRUE}
+wineRules <- apriori(wineTransaction, parameter = list(supp = 0.004, conf = 0.9))
+summary(wineRules)
+```
+
+These parameters have generated a list of 108 rules. These rules will be ordered by support, confidence, and lift to see which are the top 10 according to each metric.
+
+First, the top 10 rules by support will be displayed and a few of the interesting rules will be discussed.
+
+```{r, cache = TRUE}
+#Ordering the rules by support.
+wineRulesSupport <- sort(wineRules, decreasing = TRUE, by = "support")
+#Displaying the top 10 rules.
+arules::inspect(wineRulesSupport[1:10])
+```
+
+The top rule by support reveals that having a percent alcohol between 8% and 9.2% and a wine quality rating of 7 means the wine will most likely have a residual sugar value between 12.8 and 65.8. This rule has a confidence of 93% meaning that when that left hand side occurs this right hand side occurs with it almost all of the time. If a wine has a low percentage of alcohol and is rated a 7, then it is almost always a sweeter wine containing a higher than average amount of residual sugar for this data set. This could imply that the wine experts have a preference towards sweeter tasting wines.
+
+Another interesting rule is #6 which reveals that 97% of time when a wine sample has a fixed acidity value between 7.2 and 7.7, a chlorides value between 0.055 and 0.346, a total SO2 value between 185 and 440, and an alcohol percentage between 8% and 9.2%, that it will have a residual sugar value between 12.8 and 65.8. This rule provides some insight into the combinations of physiochemical properties. Wines with those properties are almost always sweeter tasting white wines.
+
+A third interesting rule is #9 which reveals that 94% of the time when a wine sample has a citric acid value between 0 and 0.24, a pH value between 3.35 and 3.82, and a percentage of alcohol between 12.1 and 14.2, that the fixed acidity value will be between 3.8 and 6. This rule also gives some insight into the relationships between the properties of the wine. Wines that have a higher pH level, low level of citric acid, and high alcohol percentage tend to have a lower fixed acidity value.
+
+Next, the top 10 rules by confidence will be displayed. Again, some interesting rules will be highlighted.
+
+```{r, cache = TRUE}
+#Ordering the rules by confidence.
+wineRulesConf <- sort(wineRules, decreasing = TRUE, by = "confidence")
+#Displaying the top 10 rules.
+arules::inspect(wineRulesConf[1:10])
+```
+
+The highest confidence rule is similar to the highest support rule. A pH value between 2.72 and 3.03, a percent alcohol between 8% and 9.2%, and a wine quality rating of 7 always means that the wine will have a high value of residual sugar, between 12.8 and 65.8.
+
+Rule #6 may give some insight into how the expert judges make their decisions on wine quality. When a wine sample has a volatile acidity value between 0.22 and 0.25, a citric acid value between 0 and 0.24, and a free SO2 value between 36 and 44, the wine always has a quality rating of 6. There must be something about this combination of properties that always results in an average tasting wine. A wine with a rating of 6 is likely pleasant to drink, but does nothing to stand out from the crowd.
+
+Similarly, rule #8 may reveal how to score a bit higher with the judges. A wine sample with a volatile acidity value between 0.08 and 0.18, residual sugar value between 12.8 and 65.8, pH value between 2.72 and 3.03, and alcohol percentage between 8% and 9.2% will always have a quality rating of 7. This rule reinforces the notion that the judges have a preference for sweeter wines with a lower pH value.
+
+Lastly, the top 10 rules by lift will be displayed and then a few interesting rules will be discussed.
+
+```{r, cache = TRUE}
+#Ordering the rules by lift.
+wineRulesLift <- sort(wineRules, decreasing = TRUE, by = "lift")
+#Displaying the top 10 rules.
+arules::inspect(wineRulesLift[1:10])
+```
+
+The rule with the highest lift gives more information about the relationship between the properties. A citric acid value between 0 and 0.24, a pH value between 3.35 and 3.82, and an alcohol percentage between 12.1% and 14.2% results in a fixed acidity value between 3.8 and 6 with 94% confidence. It makes sense that the amount of citric acid and the pH level would be related to the fixed acidity level, since both of those properties also describe the acidity of the wine.
+
+Eight of the ten rules have an alcohol percentage between 8% and 9.2% as the right hand side. Looking at all of these rules reveals that a fixed acidity value between 7.2 and 7.7, a residual sugar value between 12.8 and 65.8, and a pH value between 2.72 and 3.03 are often featured in these rules. This implies that these properties likely have some relationship to the final alcohol percentage of the wine.
+
+The second task involves fixing the left hand side of the rules to specific items to see what right hand sides are generated. This ruleset will be ordered by confidence since that ordering gave a greater variety of rules in the first task.
+
+Since a high residual sugar content was featured in many of the rules previously seen, it will be interesting to see what rules involve a low sugar content. Since these rules are targeting a specific left hand side, the support and confidence thresholds will be set to 0 to guarantee the existence of these rules. Since the rules will be ordered by confidence, the analysis will focus on the "best" rules anyway.
+
+```{r, cache = TRUE}
+#Identifying Top 10 Rules with low residual sugar left hand side ordered by confidence
+wineRulesSugar <- apriori(data = wineTransaction, parameter = list(supp=0, conf = 0), appearance = list(default = "rhs", lhs = "ResidSugar=[0.6, 1.4)"), control = list(verbose = F))
+summary(wineRulesSugar)
+wineRulesSugar <- sort(wineRulesSugar, decreasing = TRUE, by = "confidence")
+arules::inspect(wineRulesSugar[1:10])
+```
+
+The two rules with empty left hand sides will be ignored. None of the rules with a left hand side containing a residual sugar value between 0.6 and 1.4 are particularly strong. The support values for these rules are very low and the highest confidence is only 44.3%. Regardless, these rules reveal that sometimes a low residual sugar level will lead to an average wine quality score of 5 or 6. The other rules relate those values of residual sugar to a particular value of one of the other properties.
+
+The left hand side will now focus on values of alcohol percentage that are closer to the middle of the distribution. The previous rules revealed associations for the lowest and highest alcohol percentages, so it will be interesting to see how the "middle" percentages are associated to other items in the data. The middle bin of [10.1, 10.6) will be selected. The rules will again be sorted by confidence.
+
+```{r, cache = TRUE}
+#Identifying Top 10 Rules with medium alcohol percentage left hand side ordered by confidence
+wineRulesAlc <- apriori(data = wineTransaction, parameter = list(supp=0, conf = 0), appearance = list(default = "rhs", lhs = "PercentAlc=[10.1, 10.6)"), control = list(verbose = F))
+summary(wineRulesAlc)
+wineRulesAlc <- sort(wineRulesAlc, decreasing = TRUE, by = "confidence")
+arules::inspect(wineRulesAlc[1:10])
+```
+
+Again, the rules with blank left hand sides will be ignored. This time the top rule has slightly higher confidence at 52.7%. This rule forms an association between a middle alcohol percentage and a rating of 6. The other rules reveal some of the relationships between a middle alcohol percentage and the other properties, although all of these confidence levels are very low. Sometimes a middle alcohol percentage can result in a low level of residual sugar or a high level of sulfates.
+
+The third task is to mine association rules where the right hand side is one of the quality ratings. For this analysis, three groups of rules will be created. One where the right hand side is set to be "good" wines, or those rated a 7, 8, or 9, "average" wines, or those rated a 5 or a 6, and "poor" wines, or those rated a 3 or a 4. The intention is to analyze the items that the left hand sides of the rules have in common to reveal possible patterns of the values of properties that lead to the wines being rated differently. Each rule set will be ordered by confidence and the top 5 rules displayed.
+
+For each of the rule sets, the support and confidence thresholds will be raised or lowered based on how many wine samples in the data set fall into each of the "poor", "average", or "good" quality groups.
+
+The first rule set generated will be for the "good" wines, which are those rated a 7 or higher.
+
+```{r, cache = TRUE}
+#Identifying Top 5 Rules to Identify Highly Rated Wine by Confidence
+wineRulesGood <- apriori(data = wineTransaction, parameter = list(supp=0.0018, conf = 
+                                                                   0.9),
+                        appearance = list(default="lhs", rhs=c("WineQuality=7", "WineQuality=8", "WineQuality=9")),
+                        control = list(verbose = F))
+summary(wineRulesGood)
+wineRulesGood <- sort(wineRulesGood, decreasing = TRUE, by = "confidence")
+arules::inspect(wineRulesGood[1:5])
+```
+
+The top five rules for the good wines exhibit many strong similarities between them. All of these rules have 100% confidence, so every time this left hand side appears it has the given right hand side. All of these rules describe the association between the items describing the wine properties and a wine quality rating. The volatile acidity variable shows up in all five rules and these items represent the lowest 2 bins for that variable. The citric acid variable appears in three rules and the item is always one of the middle bins with values between 0.27 and 0.3. The pH variable is in three of the rules and the item is always the lowest bin. Lastly, the percent alcohol variable shows up in four of the rules and the item is always the lowest bin. These rules can be summarized with the following general association: low volatile acidity, low pH, low percent alcohol, and medium levels of citric acid tend to result in highly rated wines, receiving a score of 7 or 8.
+
+The second rule set generated will be for the "average" wines, which are those rated a 5 or a 6.
+
+```{r, cache = TRUE}
+#Identifying Top 5 Rules to Identify Average Wine by Confidence
+wineRulesAvg <- apriori(data = wineTransaction, parameter = list(supp=0.003, conf = 
+                                                                   0.9),
+                        appearance = list(default="lhs", rhs=c("WineQuality=5", "WineQuality=6")),
+                        control = list(verbose = F))
+summary(wineRulesAvg)
+wineRulesAvg <- sort(wineRulesAvg, decreasing = TRUE, by = "confidence")
+arules::inspect(wineRulesAvg[1:5])
+```
+
+The top five rules for the average wines are much more varied than they were for the good wines. Each of these rules also has 100% confidence. Fixed acidity shows up in three of the rules and the items are the middle bins for this variable, [6.7, 6.9) and [6.9, 7.2). Percent alcohol is present in two of the rules with the item representing the second lowest bin both times. Other than those items, the other left hand side items vary in terms of what variable is present, or what bin is present for the variable. This leads to less certainty when trying to summarize the properties that lead to an average quality wine. A possible explanation is that average rated wines would have some good qualities and some bad qualities, and which ones are good or bad for each wine may differ. Those good and bad qualities then average out to produce an average tasting wine.
+
+The final rule set will be for the "poor" wines, those rated a 4 or lower.
+
+```{r, cache = TRUE}
+#Identifying Top 5 rules to Identify Poorly Rated Wine by Confidence
+wineRulesPoor <- apriori(data = wineTransaction, parameter = list(supp=0.0008, conf = 
+                                                                    0.80),
+                         appearance = list(default="lhs", rhs=c("WineQuality=3", "WineQuality=4")),
+                         control = list(verbose = F))
+summary(wineRulesPoor)
+wineRulesPoor <- sort(wineRulesPoor, decreasing = TRUE, by = "confidence")
+arules::inspect(wineRulesPoor[1:5])
+```
+
+The top five rules for the poor wines are somewhat varied, but less so than the average wines. Again, all five of these rules have 100% confidence. The citric acid variable appears in four of the rules with the item representing the lowest bin each time. The free SO2 variable appears three times, with the item representing its lowest bin each time as well. It is also noteworthy that one of the rules contains the lowest percent alcohol bin and another rule contains the second highest percent alcohol bin. The other items in the left hand side tend to vary from rule to rule. For example, in the first rule the residual sugar is much higher than that of the third rule. The lowest levels of citric acid and free SO2 tend to result in poorly rated wines. Since the amount of free SO2 determines how resistant the wine is to spoiling, it is possible that these wines were rated poorly because their quality degraded from what it was originally. Although, there may also be many other combinations of factors that can explain why a wine was rated poorly.
+
+#### Clustering by K-Means
+
+A clustering analysis is the process of finding groups of objects such that the objects in a group will be similar to one another and different from the objects in other groups. Since this is an unsupervised machine learning technique, there are no predefined classes. 
+
+The K-Means clustering algorithm involves finding a centroid, which is the center of the cluster determined by finding the average of all the data examples in the cluster. The algorithm starts by randomly picking k number of points as centroids and forming k number of clusters based on how close each point is to each centroid. Then the centroid of each cluster is recalculated. This process repeats until the centroids do not change from one step to the next. 
+
+The quality of the models created using this method can be assessed by looking at the ratio of the intra-cluster variance to the inter-cluster variance. Intra-cluster variance measures the distance between the centroid and each point of the cluster and is represented by the within sum of squares value. Inter-cluster variance measures the external separation of the clusters and is represented by the between sum of squares value. Better clustering occurs when the within sum of squares is minimized and the between sum of squares is maximized.
+
+(reference: https://towardsdatascience.com/explain-ml-in-a-simple-way-k-means-clustering-e925d019743b)
+
+Before starting, it is important to point out a weakness of the K-Means algorithm. As the number of clusters is increased, the sum of squares error is consequently decreased. This means that if the number of clusters is the same as the number of data points then the sum of squares measures will signify a perfect clustering, even though this would tell us nothing new about the data set. 
+
+Several models will be created, each targeting a different number of clusters. The first model will feature 3 clusters, similar to how the wine quality ratings were broken into 3 groups (poor, average, and good) for the association rule mining analysis. It will be interesting to see if the K-Means clustering will be able to recognize and correctly classify these 3 groups.
+
+```{r, cache = TRUE}
+#Set seed to control randomization
+set.seed(12345)
+
+#Run k-means to create a model with 3 clusters
+KM3 <- kmeans(wineCluster, 3)
+#Show the percentage of the total sum of squares that is the between sum of squares
+KM3$betweenss / (KM3$tot.withinss + KM3$betweenss)
+```
+
+The total sum of squares is the sum of the between sum of squares and within sum of squares. In this model featuring three clusters, the between sum of squares is only 26.7% of the total sum of squares, meaning the within sum of squares is 73.3% of the total sum of squares. Since the between sum of squares is a small percent of the total, there is little external separation between the clusters. This can be seen in the following visualization.
+
+There are two massive groups of data points with two fairly distinct clusters and a third cluster that is totally encompassed by the other two.
+
+```{r, cache = TRUE}
+#Adding the cluster assignments to the data frame as a factor variable.
+wineKM3 <- wineCluster
+wineKM3$Clusters <- as.factor(KM3$cluster)
+
+#Visualize the clusters
+clusplot(wineKM3, wineKM3$Clusters, color = TRUE, 
+         shade = TRUE, labels = 0, lines = 0)
+
+#Adding the cluster column to the version of the data frame where the wine quality rating is included. This way the clusters can be shown by wine quality to evaluate the model.
+wineKM3Bar <- wine
+wineKM3Bar$Clusters <- as.factor(KM3$cluster)
+wineKM3Bar %>%
+  ggplot(aes(x = WineQuality, fill = Clusters)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15)) 
+```
+
+The 3 cluster model was not able to create "poor", "average", and "good" quality wine groups. The first cluster is comprised of wine samples from every wine quality rating. The second cluster is comprised of wine samples from every wine quality rating as well. Lastly, the third cluster is split between wine samples that were rated a 5 or a 6. Since all the samples of each quality rating are spread among all the clusters, this model did not identify patterns in the physiochemical properties that could lead to distinct groupings based on their quality ratings.
+
+The next model will feature seven clusters since there seven different quality ratings.
+
+```{r, cache = TRUE}
+#Set seed to control randomization
+set.seed(12345)
+
+#Run k-means to create a model with 7 clusters
+KM7 <- kmeans(wineCluster, 7)
+#Show the percentage of the total sum of squares that is the between sum of squares
+KM7$betweenss / (KM7$tot.withinss + KM7$betweenss)
+```
+
+This time the between sum of squares is 42.6% of the total sum of squares. This means that there is more of a separation between the clusters in this model compared to the previous model. Although, this metric will naturally increase as the number of clusters increase regardless of how well the model is performing. This means that this metric will give an inflated sense of "goodness" of how well the model performs.
+
+This time, the data examples are forming a large cloud without too much of a distinct shape, and all of the clusters are overlapping with one another to varying degrees.
+
+```{r, cache = TRUE}
+#Adding the cluster assignments to the data frame as a factor variable.
+wineKM7 <- wineCluster
+wineKM7$Clusters <- as.factor(KM7$cluster)
+
+#Visualize the clusters
+clusplot(wineKM7, wineKM7$Clusters, color = TRUE, 
+         shade = TRUE, labels = 0, lines = 0)
+
+#Adding the cluster column to the version of the data frame where the wine quality rating is included. This way the clusters can be shown by wine quality to evaluate the model.
+wineKM7Bar <- wine
+wineKM7Bar$Clusters <- as.factor(KM7$cluster)
+wineKM7Bar %>%
+  ggplot(aes(x = WineQuality, fill = Clusters)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15)) 
+```
+
+Increasing the number of clusters to seven did not improve the model's ability to group the wine samples to match the wine quality ratings. Once again, many of the clusters contain samples from every wine quality rating. This model does not allow any strong conclusions to be made.
+
+The next model will feature ten clusters. 
+
+```{r, cache = TRUE}
+#Set seed to control randomization
+set.seed(12345)
+
+#Run k-means to create a model with 10 clusters
+KM10 <- kmeans(wineCluster, 10)
+#Show the percentage of the total sum of squares that is the between sum of squares
+KM10$betweenss / (KM10$tot.withinss + KM10$betweenss)
+```
+
+This time, the between sum of squares has increased to 49%. This is a 7% increase over the previous model. Even with three more clusters, there is not a great degree of separation. 
+
+The data examples are forming a single large cloud with all of the clusters intersecting into the cloud.
+
+```{r, cache = TRUE}
+#Adding the cluster assignments to the data frame as a factor variable.
+wineKM10 <- wineCluster
+wineKM10$Clusters <- as.factor(KM10$cluster)
+
+#Visualize the clusters
+clusplot(wineKM10, wineKM10$Clusters, color = TRUE, 
+         shade = TRUE, labels = 0, lines = 0)
+
+#Adding the cluster column to the version of the data frame where the wine quality rating is included. This way the clusters can be shown by wine quality to evaluate the model.
+wineKM10Bar <- wine
+wineKM10Bar$Clusters <- as.factor(KM10$cluster)
+wineKM10Bar %>%
+  ggplot(aes(x = WineQuality, fill = Clusters)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15)) 
+```
+
+The ten cluster model has very similar results compared to the last two models. Again, the clusters are not being formed in a way where each cluster would represent a particular wine quality rating. Each wine quality rating is featured in almost all of the ten clusters.
+
+The last k-Means clustering model will feature 14 clusters.
+
+```{r, cache = TRUE}
+#Set seed to control randomization
+set.seed(12345)
+
+#Run k-means to create a model with 3 clusters
+KM14 <- kmeans(wineCluster, 14)
+#Show the percentage of the total sum of squares that is the between sum of squares
+KM14$betweenss / (KM14$tot.withinss + KM14$betweenss)
+```
+
+This 14 cluster model features only a very modest increase in the between sum of squares percentage compared to the last model. This means similar results to the previous model should be expected.
+
+Once again, the data examples form a large cloud and all of the clusters intersect into that cloud just like with the seven and ten cluster models.
+
+```{r, cache = TRUE}
+#Adding the cluster assignments to the data frame as a factor variable.
+wineKM14 <- wineCluster
+wineKM14$Clusters <- as.factor(KM14$cluster)
+
+#Visualize the clusters
+clusplot(wineKM14, wineKM14$Clusters, color = TRUE, 
+         shade = TRUE, labels = 0, lines = 0)
+
+#Adding the cluster column to the version of the data frame where the wine quality rating is included. This way the clusters can be shown by wine quality to evaluate the model.
+wineKM14Bar <- wine
+wineKM14Bar$Clusters <- as.factor(KM14$cluster)
+wineKM14Bar %>%
+  ggplot(aes(x = WineQuality, fill = Clusters)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15)) 
+```
+
+Using fourteen clusters only increased how many times the wine samples from each wine quality rating category are broken up into separate clusters. Just like with the previous models, wine samples from each wine quality rating are showing up in many, if not all, of the clusters.
+
+#### K-Means Clustering Model Comparison and Selection
+
+None of the k-Means clustering models created clusters that would appear to be related to each wine sample's quality rating. This may mean that k-Means clustering is not a suitable technique to use on this particular data set. It may also mean that there is such a small difference between the physiochemical properties that lead to a certain quality rating, that the algorithm was not able to pick up on them. 
+
+For the purposes of this analysis, the seven cluster model will be chosen as the final model. Having more clusters did not improve the model and only made the visualization harder to understand. None of these models categorized the data in the way that was hoped for, so which model is selected does not matter too much. The results of these models are still meaningful, however, just not towards a conclusion of the quality of the wine samples being distinctly separated by the properties contained in this data set.
+
+#### Hierarchical Agglomerative Clustering (HAC)
+
+The Hierarchical Agglomerative Clustering algorithm creates a dendrogram, which is a tree diagram of clusters, made up of several levels of nested partitioning. The clusters are determined using a selected distance measure. The advantage of using HAC with a dendrogram output is that it reveals exactly which data example is in each cluster. Also, within each cluster, the data examples that are closest to one another are most similar. This works best, however, when the data set is small enough that all the results are visible on the single plot. Since this data set contains almost 5,000 data examples, a dendrogram would be completely unreadable. To overcome this limitation, the data will be clustered using the HAC and a colored dendrogram will be displayed. This colored dendrogram will then be converted into a bar plot like those used for the k-Means clustering analysis. 
+
+The results of the HAC models will differ based on which distance measure is used. Four different models will be created, each featuring a different distance measure. These models will be assessed in the same way as the k-Means models, by seeing if the models are able to recreate the wine quality rating categories when they cluster the wine samples.
+
+The four distance calculation methods that will be used in this analysis are Euclidean, Cosine, Manhattan, and Minkowski. Euclidean distance is the "straight-line" physical distance between the data entries. Cosine distance measures the size of the angle between the two data points measured from the origin. Manhattan distance measures the distance from one data point to another but only by traveling along square blocks. Minkowski distance is measured by calculating the distance between data points in an n-dimensional space. The Minkowski distance requires a value of p that determines its specific calculation method. A value of 1.5 will be used because that calculation results in one that is between the Euclidean and Manhattan methods.
+
+```{r}
+set.seed(12345)
+#Calculate each of the distance measures to be used for HAC.
+distEuc <- dist(wineCluster, method = "euclidean")
+distCos <- dist(wineCluster, method = "cosine")
+distMan <- dist(wineCluster, method = "manhattan")
+distMin <- dist(wineCluster, method = "minkowski", p = 1.5)
+```
+
+Each clustering will be performed using the complete linkage method. This method calculates the distance between clusters by finding the distance between the two data points in each cluster that are the farthest away from one another. This method produces clusters that are more compact than other linkage methods. This is advantageous for this task because the previous analysis has shown that many of the clusters are similar. By favoring smaller clusters over the larger clusters, this model may be able to uncover some patterns in the data that lead to particular wine quality ratings.
+
+(reference: https://www.r-bloggers.com/2017/12/how-to-perform-hierarchical-clustering-using-r/)
+
+The first model will use the Euclidean distance measure.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Run the first HAC using Euclidean distance and complete linkage.
+HAC1 <- hclust(distEuc, method = "complete")
+```
+
+The model will be visualized using a colored dendrogram. Although the labels at the end of the branches are unreadable due to the volume of data, this visualization gives an initial impression of the number of and size of the clusters created by the model. Setting the h parameter to 12 tells the model at which heigh to cut the tree for the purpose of creating and coloring the clusters. An h value of 12 will allow the model to create a similar number of clusters as the k-Means models if it finds it appropriate to do so.
+
+```{r, cache = TRUE}
+#Plot the colored dendrogram based on the HAC.
+dendrogram1 <- as.dendrogram(HAC1)
+dendrogram_color1 <- color_branches(dendrogram1, h=12)
+plot(dendrogram_color1)
+```
+
+The dendrogram features five clusters each represented by a different color. The blue and pink clusters contain the great majority of the wine samples, and there appears to be a cluster of a single wine sample that is colored red.
+
+The cutree function is used to cut the trees at the same height as was done in the color dendrogram. These cut levels form the clusters and that information is passed to a data frame. This data frame also has the wine quality rating information added back into it. The clusters and wine quality ratings can now be displayed in the same style of bar chart that was used in the k-Means analysis.
+
+```{r, cache = TRUE}
+#Using cutree to cut the tree at the same heights as the color dendrogram.
+cuts <- cutree(HAC1, h = 12)
+#Copying wineCluster to a new results data frame.
+wineClusterResult <- wineCluster
+#Adding the wine quality rating back into the data set.
+wineClusterResult$WineQuality <- wine$WineQuality
+#Adding the cluster assignments to the data set based on the level at which the trees were cut.
+wineClusterResult <- mutate(wineClusterResult, cluster = cuts)
+wineClusterResult$cluster <- as.factor(wineClusterResult$cluster)
+#Plotting the bar plot of the cluster assignments by wine quality.
+wineClusterResult %>%
+  ggplot(aes(x = WineQuality, fill = cluster)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15))
+```
+
+The bar plot reveals that the model placed wine samples into five of the available eight clusters. The wine samples by quality rating are distributed throughout the clusters. There is no cluster that represents a single quality rating or even a group of similar quality ratings. The Euclidean distance metric did not achieve the clustering results that were hoped for.
+
+The next model will use the cosine distance measure.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Run the second HAC using cosine distance and complete linkage.
+HAC2 <- hclust(distCos, method = "complete")
+```
+
+```{r, cache = TRUE}
+#Plot the colored dendrogram based on the HAC.
+dendrogram2 <- as.dendrogram(HAC2)
+dendrogram_color2 <- color_branches(dendrogram2, h=4)
+plot(dendrogram_color2)
+```
+
+Even with the h value reduced to 4, which gives the model the opportunity to make more smaller clusters, the model created only a single cluster containing every wine sample. The model provides no insight related to the data set.
+
+```{r, cache = TRUE}
+#Using cutree to cut the tree at the same heights as the color dendrogram.
+cuts2 <- cutree(HAC2, h = 4)
+#Copying wineCluster to a new results data frame.
+wineClusterResult2 <- wineCluster
+#Adding the wine quality rating back into the data set.
+wineClusterResult2$WineQuality <- wine$WineQuality
+#Adding the cluster assignments to the data set based on the level at which the trees were cut.
+wineClusterResult2 <- mutate(wineClusterResult2, cluster = cuts2)
+wineClusterResult2$cluster <- as.factor(wineClusterResult2$cluster)
+#Plotting the bar plot of the cluster assignments by wine quality.
+wineClusterResult2 %>%
+  ggplot(aes(x = WineQuality, fill = cluster)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15))
+```
+
+Unsurprisingly, the associated bar chart shows that all the wine samples were placed into a single cluster. It is clear that the cosine distance measure is unable to find any significant differences in the data examples that could result in them being grouped differently.
+
+The third model will use the Manhattan distance measure.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Run the third HAC using Manhattan distance and complete linkage.
+HAC3 <- hclust(distMan, method = "complete")
+```
+
+The model will be visualized using a colored dendrogram. Setting the h parameter to 24 results in a lower number of clusters so it is more comparable to the Euclidean distance model. This will be seen in the size of the clusters in the color dendrogram. Setting the h parameter too low results in several hundred potential clusters.
+
+```{r, cache = TRUE}
+#Plot the colored dendrogram based on the HAC.
+dendrogram3 <- as.dendrogram(HAC3)
+dendrogram_color3 <- color_branches(dendrogram3, h=24)
+plot(dendrogram_color3)
+```
+
+This dendrogram features nine clusters represented by the different colors. The wine samples are more evenly distributed throughout the clusters than how they were in the Euclidean distance model. Again there is a single data example cluster on the left side of the model. The large blue and pink clusters from the Euclidean model have each been subdivided into a few more clusters.
+
+```{r, cache = TRUE}
+#Using cutree to cut the tree at the same heights as the color dendrogram.
+cuts3 <- cutree(HAC3, h = 24)
+#Copying wineCluster to a new results data frame.
+wineClusterResult3 <- wineCluster
+#Adding the wine quality rating back into the data set.
+wineClusterResult3$WineQuality <- wine$WineQuality
+#Adding the cluster assignments to the data set based on the level at which the trees were cut.
+wineClusterResult3 <- mutate(wineClusterResult3, cluster = cuts3)
+wineClusterResult3$cluster <- as.factor(wineClusterResult3$cluster)
+#Plotting the bar plot of the cluster assignments by wine quality.
+wineClusterResult3 %>%
+  ggplot(aes(x = WineQuality, fill = cluster)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15))
+```
+
+The associated bar plot reveals that the wine samples with different wine quality ratings are once again spread throughout all of the clusters. The clusters are not related in any way to the wine quality ratings, as each bar has similar color bands running through it. 
+
+The last model will use the Minkowski distance measure.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Run the fourth HAC using Minkowski distance and complete linkage.
+HAC4 <- hclust(distMin, method = "complete")
+```
+
+The Minkowski model uses an h value of 16 to keep the number of clusters consistent with the other models. 
+
+```{r, cache = TRUE}
+#Plot the colored dendrogram based on the HAC.
+dendrogram4 <- as.dendrogram(HAC4)
+dendrogram_color4 <- color_branches(dendrogram4, h=16)
+plot(dendrogram_color4)
+```
+
+The resulting dendrogram has a very similar make-up when compared to the Euclidean model. This time however, the purple cluster is the largest, and the blue and pink clusters have been reduced in size. Once again, there is a single wine sample cluster in red. Also a small yellow cluster has appeared to the left of the green cluster.
+
+```{r, cache = TRUE}
+#Using cutree to cut the tree at the same heights as the color dendrogram.
+cuts4 <- cutree(HAC4, h = 16)
+#Copying wineCluster to a new results data frame.
+wineClusterResult4 <- wineCluster
+#Adding the wine quality rating back into the data set.
+wineClusterResult4$WineQuality <- wine$WineQuality
+#Adding the cluster assignments to the data set based on the level at which the trees were cut.
+wineClusterResult4 <- mutate(wineClusterResult4, cluster = cuts4)
+wineClusterResult4$cluster <- as.factor(wineClusterResult4$cluster)
+#Plotting the bar plot of the cluster assignments by wine quality.
+wineClusterResult4 %>%
+  ggplot(aes(x = WineQuality, fill = cluster)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15))
+```
+
+The bar plot tells a story that is very similar to the rest of the HAC models as well as the K-Means models. The HAC algorithm is not able to create clusters that reflect the different wine quality ratings. Again, the samples are distributed evenly throughout the different clusters. The color bands in each bar are very similar to one another, which means that the characteristics of the wine samples do not separate them into different quality rating groups when clustered.
+
+#### HAC Model Comparison and Selection
+
+Like the K-Means models, the HAC models were not able to cluster the data according to the output variable. The cosine distance model performed especially poorly, just placing the entire data set into a single cluster. The rest of the distance measures gave similar results. When compared specifically to the wine quality ratings, the clusters appear to just be assigned at random. All of the clusters contain a variety of the wine samples with different quality ratings. This clustering technique does not perform well for this specific task related to the data set.
+
+Although none of the models provide insight towards solving this clustering problem, the Minkowski model will be selected as the final model. Both the dendrogram and bar plot are very clear in showing the model's inability to identify the different wine quality rating groups. It is similar to the Euclidean and Manhattan models, while offering a significant advantage over the cosine model which did not provide any useful insights whatsoever.
+
+#### Classification by Decision Tree Models
+
+A decision tree is made up of a series of nodes and splits, each focusing on different variables in the data set. Based on the values of each of the variables, a diagram of "yes-no" decisions are made that lead to a prediction. In this case, the model will be predicting the quality rating for each wine sample based on the values of their physiochemical properties. Starting from the first node, the model will choose a variable and a boundary value. Depending on the actual value of the variable for each wine sample compared to the boundary value, each node will branch off in two directions leading to either a terminal node, where a final prediction is made, or to a node that features another split based on the boundary value of a variable. This type of classification model is easy to read and interpret because all the decisions and predictions are plainly displayed for the reader. By following each branch of the tree from the top to the bottom, one can know exactly why the model predicted each output for each wine sample.
+
+For this analysis, several decision tree models will be run. The parameters will be tuned to create trees that are pruned to various levels or completely unpruned. The models will be compared in terms of accuracy, efficiency, and readability. Since the main advantage of using a decision tree model is how it is possible to see every decision the algorithm makes to come to a prediction, this aspect will be weighed heavily when choosing the best decision tree model.
+
+The first decision tree will be created using the default parameters.
+
+```{r, cache = TRUE}
+set.seed(12345)
+DT_model1 <- rpart(WineQuality ~ ., data = wineTrain, method = "class")
+```
+
+The following output reveals that the default decision tree will feature 5 splits. Also, the relative error is very high at almost 0.9. This means that the decision tree is not accurate when predicting the wine quality rating.
+
+```{r, warning = FALSE, cache = TRUE}
+rsq.rpart(DT_model1)
+```
+
+The following plot is the actual decision tree used by the model to predict the wine quality ratings. The decision tree works by having each data example answer a series of yes or no questions based on the values of the variables. In this model, if the percent alcohol of a wine sample is less than 11 then the model splits to the left, then asking if the volatile acidity variable is greater than or equal to 0.24, and so on. If the percent alcohol is greater than or equal to 11 then the model splits to the right and asks if the percent alcohol is less than 13, and so on. This decision tree entirely focused on only three variables: PercentAlc, VolatileAcidity, and FreeSO2. Also, because there are only six terminal nodes, there are not enough nodes to represent every wine quality rating. This model will only ever guess that a wine is a 5, 6, or 7 based on the terminal nodes. So, there is no way it will ever classify wine samples with ratings of 3, 4, 8, or 9 correctly.
+
+```{r, cache = TRUE}
+fancyRpartPlot(DT_model1)
+```
+
+```{r, cache = TRUE}
+preds_DT1 <- predict(DT_model1, newdata = wineTest, type = "class")
+confusionMatrix(preds_DT1, wineTest$WineQuality)
+```
+
+Based on the limitations of the decision tree, it is unsurprising that this model has low accuracy. The accuracy of the model is only 52.08%. However, this model is still significantly better than the No Information Rate (NIR) model with 44.92% accuracy. The NIR model is a baseline model that classifies every data example as the most prevalent class without even looking at the input data. In this case, the NIR predicts that every wine has a quality rating of 6. Examining the confusion matrix reveals that the model makes many mistakes even when classifying those wines that do have a rating of 5, 6, or 7. When a wine has a rating of 5, the model guessed that it was a 5 or a 6 an almost equal number of times. Out of the quality ratings that the model could guess, the model had the worst accuracy classifying wines with a rating of 7. It incorrectly classified 212 out of the 264 samples.
+
+The next model will be pruned less to see if the accuracy can be improved. Ideally, this model would feature enough terminal nodes so that every wine quality rating can be guessed.
+
+```{r, cache = TRUE}
+set.seed(12345)
+DT_model2 <- rpart(WineQuality ~ ., data = wineTrain, method = "class", 
+                   control = rpart.control(cp = 0.003), model = TRUE)
+```
+
+Setting the complexity parameter to 0.003 will result in a tree with more splits and nodes than the default model. This complexity parameter value will make the model less restrictive to create a split, by requiring the minimum benefit that split will add to the tree is less than the default model. This results in a decision tree with 14 splits. The plots reveal that the accuracy of this model did not meaningfully improve over the default model.
+
+```{r, warning = FALSE, cache = TRUE}
+rsq.rpart(DT_model2)
+```
+
+The following decision tree has more terminal nodes than the default model. But even with fifteen terminal nodes, the model still does not guess any wine quality ratings other than 5, 6, or 7. This decision tree also has the same three initial splits as the default model. Even with the rest of the tree having a very different shape, the accuracy does not greatly improve. As long as the model is only guessing between 3 of the wine quality ratings, it will never be able to predict the ratings of all the wine samples.
+
+```{r, cache = TRUE}
+fancyRpartPlot(DT_model2)
+```
+
+```{r, cache = TRUE}
+preds_DT2 <- predict(DT_model2, newdata = wineTest, type = "class")
+confusionMatrix(preds_DT2, wineTest$WineQuality)
+```
+
+This model is not even 1% more accurate then the default model, with an accuracy of 52.76%. The model still exhibits all of the same issues as well. Looking at the confusion matrix, the model is still predicting that a wine that is actually rated as a 5 is a 5 or a 6 in equal amounts. The model still has extremely low accuracy when predicting a wine that is actually rated as a 7 as well.
+
+Next, a completely unpruned decision tree will be created to see if there is any circumstance where this type of model can have sufficient accuracy.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating completely unpruned decision tree.
+DT_model3 <- rpart(WineQuality ~ ., data = wineTrain, method = "class",
+                      control = rpart.control(minbucket = 1, minsplit = 1, cp = -1),
+                      model = TRUE)
+```
+
+The following plots reveal that this decision tree features well over 800 splits. The error has also been somewhat reduced compared to the other models, but is still around 0.8. Since the decision tree is so large, it cannot be visualized or interpreted. 
+
+```{r, warning = FALSE, cache = TRUE}
+rsq.rpart(DT_model3)
+```
+
+Even though the decision tree cannot be seen, the accuracy of the model will still be evaluated.
+
+```{r, cache = TRUE}
+preds3 <- predict(DT_model3, newdata = wineTest, type = "class")
+confusionMatrix(preds3, wineTest$WineQuality)
+```
+
+This model has the highest accuracy of the three decision trees, although it is still only 58.21%. Besides the accuracy, the greatest advantage of this model is that it is now able to guess more than 5, 6, or 7. The model has now made predictions for the wine quality ratings of 4, 5, 6, 7, and 8. The accuracy of the predictions for the wine samples with a rating of 7 has improved as well. The main flaw of this model is that it cannot be visualized, meaning that no one can see the model's rationale for each of its predictions. 
+One final decision tree model will be created. This model will aim to be slightly less pruned than the second model to see if a tree that is still readable can predict more than quality ratings of 5, 6, or 7. 
+
+```{r, cache = TRUE}
+set.seed(12345)
+DT_model4 <- rpart(WineQuality ~ ., data = wineTrain, method = "class", 
+                   control = rpart.control(cp = 0.002), model = TRUE)
+```
+
+Unfortunately, lowering the complexity parameter just 0.001, increases the number of splits to over 60. The following plots also show that this model's accuracy is more similar to the first 3 than the completely unpruned model.
+
+```{r, warning = FALSE, cache = TRUE}
+rsq.rpart(DT_model4)
+```
+
+Even though this decision tree can technically be visualized, it is much too large to be interpretable. The advantage of this model is that it does have enough terminal nodes to make predictions of 4, 5, 6, 7, and 8. 
+
+```{r, cache = TRUE}
+fancyRpartPlot(DT_model4)
+```
+
+```{r, cache = TRUE}
+preds_DT4 <- predict(DT_model4, newdata = wineTest, type = "class")
+confusionMatrix(preds_DT4, wineTest$WineQuality)
+```
+
+The accuracy of this model is only 52.49%. The model somehow became less accurate than the second model, while being able to guess more of the quality ratings. The confusion matrix looks similar to the others, with many mistakes being made. The model is still wrong almost 50% of the time when classifying wines that have an actual quality rating of 5 or 7.
+
+#### Decision Tree Model Comparison and Selection
+
+None of the decision tree models performed particularly well. All of the models had significant accuracy problems predicting each one of the quality ratings. The majority of the models had significantly less than 50% accuracy when classifying wines with a quality rating of 7. The models did best when predicting wines with a quality rating of 6, although they still consistently made over 100 mistakes for this rating.
+
+When assessing the models individually, even the completely unpruned model did not reach 60% accuracy. Considering the accuracy of this model combined with the fact that it cannot be visualized, it will not be selected as the final model. Among the other three models, the decision tree with the complexity parameter of 0.003 had the second best accuracy, even though it never classified the wine samples with quality ratings of 3, 4, 8, or 9 correctly. Therefore, this model will be chosen as the final decision tree model.
+
+#### Classification by Random Forest Models
+
+Random forest models are created by combining many decision trees to produce a more accurate prediction. The advantage of random forest models is that they are very good at solving classification problems. The disadvantages are that they are prone to overfitting and are a "black box" method. This means that unlike decision trees, where one can see all the nodes and splits to understand how each classification decision is made, a user cannot directly see in the inner workings of the random forest.
+
+(reference: https://deepai.org/machine-learning-glossary-and-terms/random-forest)
+
+The first random forest model will be built using 300 trees. This large number of trees will reveal at how many trees the error of the model begins to be minimized. From there, the number of trees can be reduced to save computational time while retaining the accuracy of the larger model.
+
+```{r, cache = TRUE}
+#Create the random forest model.
+set.seed(12345)
+rf1 <- randomForest(WineQuality ~ ., data = wineTrain, ntree = 300, importance = TRUE, proximity = TRUE)
+
+print(rf1)
+```
+
+In the above confusion matrix, the class error for each wine quality rating is shown. This describes how often the model gets the prediction for a particular wine quality rating wrong. This output is related to the plot below. On this plot, each of the different colored lines represents the error rate of the model for each wine quality rating. These can be matched with the wine quality rating they represent by using the previously mentioned confusion matrix.
+
+```{r, cache = TRUE}
+plot(rf1)
+```
+
+The above plot reveals that the overall error of the model seems to minimize between 50 and 100 trees. There is very little improvement for any of the class error rates past the 100 tree mark.
+
+The following plot shows the number of nodes that each variable is featured in, as well as their mean minimal depth. PercentAlc is featured in the trees the least number of times, but when it does appear it is almost always at the top of the tree. Density, VolatileAcidity, and Chlorides are also frequently featured at the higher levels of the trees. All of the variables besides PercentAlc are featured in nodes a great number of times.
+
+```{r, cache = TRUE}
+plot_multi_way_importance(measure_importance(rf1), size_measure = "no_of_nodes")
+```
+
+The following plot visualizes the same data in a different way. PercentAlc, Density, VolatileAcidity, and Chlorides are featured in the initial node most often. The rest of the variables have much greater mean minimal depth. All of the variables on the plot are found in all of the trees. This means that to some extent, the random forest is using the values of all the variables to make its decisions.
+
+```{r, cache = TRUE}
+plot_min_depth_distribution(min_depth_distribution(rf1))
+```
+
+```{r, cache = TRUE}
+#Evaluate the accuracy of the model using the test data.
+predsRF1 <- predict(rf1, newdata = wineTest, type = "class")
+confusionMatrix(predsRF1, wineTest$WineQuality)
+```
+
+The random forest model has much higher accuracy than the decision tree models. The accuracy of this model is 68.17% compared to the NIR of 44.92%. Similar to the decision tree models, this one never correctly classifies a wine that has a quality rating of 3 or 9. It does however, correctly classify the wines with ratings of 5, 6, and 7 much more often than the decision tree models did. This model predicts a wine quality of 5 for about three quarters of the wines that were actually rated a 5, compared to the close to 50/50 split of the decision tree models.
+
+The second random forest model will be limited to 100 trees. This decision is based on the plot from the previous model. The error rate approached a minimum for all the classes before the 100 tree mark. This model will be significantly more efficient to run while hopefully having very similar accuracy to the 300 tree model.
+
+```{r, cache = TRUE}
+#Create the random forest model.
+set.seed(12345)
+rf2 <- randomForest(WineQuality ~ ., data = wineTrain, ntree = 100, importance = TRUE, proximity = TRUE)
+
+print(rf2)
+```
+
+The following plot reveals that the class error rates are indeed leveling off at a minimum by the 100 tree mark.
+
+```{r, cache = TRUE}
+plot(rf2)
+```
+
+The following plot is almost identical to the previous model's. PercentAlc is featured in a low number of nodes, but when it is, it is always at the top of the tree. Density, VolatileAcidity, and Chlorides are similarly grouped towards the upper left corner of the plot. pH and Sulfates remain in the bottom right corner of the plot with the greatest mean minimal depth.
+
+```{r, cache = TRUE}
+plot_multi_way_importance(measure_importance(rf2), size_measure = "no_of_nodes")
+```
+
+Again, PercentAlc, Density, VolatileAcidity, and Chlorides are featured in the initial split most often. PercentAlc has the lowest mean minimal depth by far, followed by Density and VolatileAcidity which both have values under 2. The rest of the variables all have a mean minimal depth greater than 2.
+
+```{r, cache = TRUE}
+plot_min_depth_distribution(min_depth_distribution(rf2))
+```
+
+```{r, cache = TRUE}
+#Evaluate the accuracy of the model using the test data.
+predsRF2 <- predict(rf2, newdata = wineTest, type = "class")
+confusionMatrix(predsRF2, wineTest$WineQuality)
+```
+
+As expected, this model has a greatly reduced number of trees, but almost the same accuracy as the 300 tree model. The accuracy of this model is 67.21% compared to the NIR of 44.92%. The confusion matrix reveals that this model retains the same advantages over the decision tree models. It is correctly classifying wines with a quality rating of 7 more often than not, and the accuracy when classifying wines with a quality rating of 5 is well above 50%.
+
+The next model will represent another attempt at improving the efficiency of the model while not sacrificing accuracy. By setting the mtry parameter to 5, the number of randomly selected variables the model is allowed to try at each split of each decision tree is reduced to 5. This approximately halves the number of variables that can be tried at each split.
+
+```{r, cache = TRUE}
+#Create the random forest model.
+set.seed(12345)
+rf3 <- randomForest(WineQuality ~ ., data = wineTrain, ntree = 100, mtry = 5, importance = TRUE, proximity = TRUE)
+
+print(rf3)
+```
+
+This model's error rates show a similar pattern compared to the previous two models. It appears that the error rates are again minimizing by the time the model reaches 100 trees, so the accuracy of this model should not be significantly reduced compared to the previous models.
+
+```{r, cache = TRUE}
+plot(rf3)
+```
+
+The PercentAlc variable has a lower mean minimal depth than the previous models. Density is still located toward the upper area of the plot, with a mean minimal depth of 2. The rest of the variables are now clustering towards the bottom right corner of the plot, where previously they were more distributed towards the middle.
+
+```{r, cache = TRUE}
+plot_multi_way_importance(measure_importance(rf3), size_measure = "no_of_nodes")
+```
+
+PercentAlc and Density are now featured in the initial split much more often than any of the other variables. PercentAlc now has a mean minimal depth of 0.73 while the rest of the variables have a much greater mean minimal depth. Even when reducing the number of randomly selected variables that can be tried at each split, all of the variables on the plot are still featured in all 100 trees.
+
+```{r, cache = TRUE}
+plot_min_depth_distribution(min_depth_distribution(rf3))
+```
+
+```{r, cache = TRUE}
+#Evaluate the accuracy of the model using the test data.
+predsRF3 <- predict(rf3, newdata = wineTest, type = "class")
+confusionMatrix(predsRF3, wineTest$WineQuality)
+```
+
+The confusion matrix reveals that the accuracy of this model is slightly reduced compared to the others. The accuracy of the model is 65.92% compared to the NIR of 44.92%. This model is still predicting wines with a rating of 5 correctly much more often than it gets them wrong, but the accuracy when predicting wines with a rating of 7 has fallen closer to 50/50.
+
+Reducing the number of trees and available variables has reduced the accuracy of the model. Even though the error rates appear to have reached their minimum before 300 trees, an unrestricted model will be created to see what might be the best case scenario for the accuracy rate. The ntree parameter is removed so the random forest will grow 500 trees.
+
+```{r, cache = TRUE}
+#Create the random forest model.
+set.seed(12345)
+rf4 <- randomForest(WineQuality ~ ., data = wineTrain, importance = TRUE, proximity = TRUE)
+
+print(rf4)
+```
+
+The error rates plot reveals that the 500 tree model does not have decreased error rates compared to the 300 tree model, or even the 100 tree model.
+
+```{r, cache = TRUE}
+plot(rf4)
+```
+
+PercentAlc is still located in the upper left portion of the plot, with Density, Chlorides, and VolatileAcidity again clustered slightly below and to the right. With the greater number of trees, pH is now grouped closer to the secondary cluster of variables that was present in the plots of the other models. Sulfates remains the variable with the greatest mean minimal depth.
+
+```{r, cache = TRUE}
+plot_multi_way_importance(measure_importance(rf4), size_measure = "no_of_nodes")
+```
+
+PercentAlc, VolatileAcidity, Density, and Chlorides are still featured in the initial split of the trees most often. Now, pH's mean minimal depth has dropped below 3. PercentAlc, VolatileAcidity, and Density are still the only variables with a mean minimal depth less than 2. All of the variables in the plot are still used in all 500 of the trees.
+
+```{r, cache = TRUE}
+plot_min_depth_distribution(min_depth_distribution(rf4))
+```
+
+```{r, cache = TRUE}
+#Evaluate the accuracy of the model using the test data.
+predsRF4 <- predict(rf4, newdata = wineTest, type = "class")
+confusionMatrix(predsRF4, wineTest$WineQuality)
+```
+
+Although this model was able to grow 200 more trees, it has lower accuracy than the 300 tree model. This model's accuracy is 67.83% compared to the NIR of 44.92%. Again, this model is only correctly predicting wines with a quality rating of 7 slightly more often than it is getting those wrong. The accuracy when classifying wines with a rating of 5 is still improved compared to the decision tree models. Even with 500 trees, the random forest model is still not predicting that any of the wine samples could be rated a 3 or a 9.
+
+#### Random Forest Model Comparison and Selection
+
+The random forest models all performed similarly with accuracies in the upper 60s. Surprisingly, the 300 tree model performed better than the 500 tree model. The 100 tree model with the variable limitations performed the worst, with approximately 3% less accuracy than the 300 tree model. All of the models were unable to predict that a wine could have a quality rating of 3 or 9. However, these models were all able to predict the ratings of the wines that are actually rated a 5, 6, or 7 with much greater accuracy than the decision tree models. Combining many decision trees into a single model rather than relying on a single decision tree seems to be a much more robust solution for this classification problem.
+
+The 300 tree model will be chosen as the final random forest model. The random forest models performed better than the decision trees, but still have fairly mediocre accuracy. Therefore, it is important to preserve the highest accuracy model to see what is the best accuracy that can be achieved while attempting to solve this classification problem.
+
+#### Classification by Support Vector Machines (SVM)
+
+SVM models are intended for binary classifications. The input data is used to create a geometric boundary, usually a line or linear hyperplane, between the two output classes. The model's goal is to maximize the margin between the classes and the boundary. There are several methods the model can use to achieve this, which are known as kernels. 
+
+Although SVM is a binary classifier, it can be extended for use in multiclass predictions, like is the case where one of seven wine quality rating categories needs to be predicted. It can do this using either a pairwise (1 vs 1) approach or a 1 vs all approach where a wine quality rating would be classified by either 3 or not, 4 or not, 5 or not, etc, and then the most confident prediction is selected. 
+
+These models have a high tolerance to noisy data, are able to use any type of data as an input, and scale very well to large data sets. These advantages are balanced by the fact the model requires a number of parameters for each kernel type and models generated by non-linear kernels are extremely difficult to interpret.
+
+In this analysis, nine total SVM models will be created. Three different kernels will be used each with three different cost parameters. The three kernels that will be used are linear, polynomial, and radial. The linear kernel is the most basic, one dimensional kernel. This one often performs best when there are many features, and it is faster to run than the other kernels. Polynomial kernels tend to be less efficient and accurate than the linear kernel as it is a more generalized representation. The radial kernel is one of the most popular kernels and is often used for non-linear data and is able to perform well even when there is no previous knowledge of the data.
+
+(reference: https://dataaspirant.com/svm-kernels/#t-1608054630726)
+
+Each of the different kernels will be tuned using cost parameters of 1, 10, and 50, where 1 is the model's default value. The cost parameter is a regularization parameter that controls how many training errors are allowed when the model is built. When the cost value is large, the model is built with fewer training errors, but has a greater chance of overfitting. When the cost value is low, the model has more training errors, but a wider margin, and the model is more generalizable. The various cost parameters will be compared to see how they impact the accuracy of the models.
+
+The SVM models will be presented without visualizations. The plot function is only able to visualize SVM models when it is being used to predict a binary output class.
+
+The first group of three models will use the linear kernel. The cost parameter that produces the best accuracy will be compared against the best accuracy model of the other kernel types. Since SVM models require normalized data to produce the best results, the normalized classification data set will be used for all of the models.
+
+The first linear kernel SVM model has a cost parameter of 1.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating linear kernel SVM, cost = 1.
+SVM_L1 <- svm(WineQuality ~ ., data = wineDistTrain, kernel = "linear", 
+             cost = 1)
+
+#Evaluate the accuracy of the model.
+preds_SVM_L1 <- predict(SVM_L1, newdata = wineDistTest, type = "class")
+confusionMatrix(preds_SVM_L1, wineDistTest$WineQuality)
+```
+
+The first linear kernel model has severe difficulties classifying the wines by quality rating. The model only guesses that a wine sample would be rated as a 5 or a 6. Also, for when the wine samples do have a 5 rating, the model only correctly classifies them around half of the time. This model has an overall accuracy of 53.58%, although with it only predicting 2 of the 7 wine rating categories, it is unusable for this classification task.
+
+The second linear kernel SVM model has a cost parameter of 10.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating linear kernel SVM, cost = 10.
+SVM_L10 <- svm(WineQuality ~ ., data = wineDistTrain, kernel = "linear", 
+             cost = 10)
+
+#Evaluate the accuracy of the model.
+preds_SVM_L10 <- predict(SVM_L10, newdata = wineDistTest, type = "class")
+confusionMatrix(preds_SVM_L10, wineDistTest$WineQuality)
+```
+
+When the cost parameter is increased to 10, the model has almost identical accuracy. Looking at the confusion matrix, only two predictions changed. The model guessed a wine sample with a rating of 3 to be a six instead of a 5, and the model classified one additional wine sample with a rating of 6 correctly. Increasing the cost parameter to 10 did not improve the model.
+
+The third linear kernel SVM model has a cost parameter of 50.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating linear kernel SVM, cost = 50.
+SVM_L50 <- svm(WineQuality ~ ., data = wineDistTrain, kernel = "linear", 
+             cost = 50)
+
+#Evaluate the accuracy of the model.
+preds_SVM_L50 <- predict(SVM_L50, newdata = wineDistTest, type = "class")
+confusionMatrix(preds_SVM_L50, wineDistTest$WineQuality)
+```
+
+With a cost parameter of 50, the model has the same accuracy as when the cost parameter was 1. The confusion matrices are almost identical as well. These three models confirm that the linear kernel does a poor job of classifying the data and that increasing the cost parameter up to 50 does not improve the accuracy of the model.
+
+The first polynomial kernel SVM has a cost parameter of 1.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating polynomial kernel SVM, cost = 1.
+SVM_P1 <- svm(WineQuality ~ ., data = wineDistTrain, kernel = "polynomial", 
+             cost = 1)
+
+#Evaluate the accuracy of the model.
+preds_SVM_P1 <- predict(SVM_P1, newdata = wineDistTest, type = "class")
+confusionMatrix(preds_SVM_P1, wineDistTest$WineQuality)
+```
+
+The polynomial kernel model is able to predict that a wine sample will have a 4, 5, 6, 7, or 8 rating. The accuracy of the model, however, is still at 53% so there is no improvement to the overall accuracy when compared to the linear kernel models. The polynomial kernel model classifies wines with a rating of 5 incorrectly more often than it does correctly. It also classifies the great majority of wines with a rating of 7 incorrectly. This model is only fairly accurate at classifying wines rated a 6.
+
+The second polynomial kernel SVM model has a cost parameter of 10.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating polynomial kernel SVM, cost = 10.
+SVM_P10 <- svm(WineQuality ~ ., data = wineDistTrain, kernel = "polynomial", 
+             cost = 10)
+
+#Evaluate the accuracy of the model.
+preds_SVM_P10 <- predict(SVM_P10, newdata = wineDistTest, type = "class")
+confusionMatrix(preds_SVM_P10, wineDistTest$WineQuality)
+```
+
+Changing the cost parameter of the polynomial kernel model to 10 has raised the accuracy by 1%. The accuracy of the model is now 54.26% compared to the NIR of 44.92%. While this model is marginally more accurate, it still displays all the same characteristics of the polynomial kernel model with cost parameter equal to 1. The model classifies the majority of wines that are rated as a 7 wrong, and is very inaccurate when classifying wines that are rated a 5.
+
+The third polynomial kernel SVM model has a cost parameter of 50.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating polynomial kernel SVM, cost = 50.
+SVM_P50 <- svm(WineQuality ~ ., data = wineDistTrain, kernel = "polynomial", 
+             cost = 50)
+
+#Evaluate the accuracy of the model.
+preds_SVM_P50 <- predict(SVM_P50, newdata = wineDistTest, type = "class")
+confusionMatrix(preds_SVM_P50, wineDistTest$WineQuality)
+```
+
+Setting the cost parameter to 50 has lowered the accuracy back down closer to the accuracy of the model with cost parameter equal to 1. Since this model is only about a half a percent more accurate than the cost parameter 1 model, it is unsurprising that the confusion matrix is extremely similar. Once again, the model shows all the same weaknesses when predicting wines that have a rating of 5 or 7. 
+
+The first radial kernel SVM model has a cost parameter of 1.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating radial kernel SVM, cost = 1.
+SVM_R1 <- svm(WineQuality ~ ., data = wineDistTrain, kernel = "radial", 
+             cost = 1)
+
+#Evaluate the accuracy of the model.
+preds_SVM_R1 <- predict(SVM_R1, newdata = wineDistTest, type = "class")
+confusionMatrix(preds_SVM_R1, wineDistTest$WineQuality)
+```
+
+Even though the radial kernel model with cost parameter equal to 1 only classifies the wines as being a 5, 6, or 7, it immediately has marginally better overall accuracy than the linear and polynomial kernel models. This accuracy of this model is 57.74% compared to the NIR of 44.92%. Although the model will never classify a wine rated 3, 4, 8, or 9 correctly, it is more accurate when classifying the wines rated as 5, 6, or 7. This model gets the wines rated as 5 right more often than it gets them wrong. It also has slightly improved accuracy when classifying the wines that are rated a 7.
+
+The second radial kernel SVM model has a cost parameter of 10.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating radial kernel SVM, cost = 10.
+SVM_R10 <- svm(WineQuality ~ ., data = wineDistTrain, kernel = "radial", 
+             cost = 10)
+
+#Evaluate the accuracy of the model.
+preds_SVM_R10 <- predict(SVM_R10, newdata = wineDistTest, type = "class")
+confusionMatrix(preds_SVM_R10, wineDistTest$WineQuality)
+```
+
+Setting the cost parameter to 10 raises the accuracy of the model by about 0.5%. It also improves the model such that it now guesses that a wine could have a wine quality rating of 4 or 8, bringing it up to same level as the polynomial kernel models. The radial kernel continues to be more accurate than the polynomial kernel models. Looking at the confusion matrix shows that the model's ability to classify wines that are rated as a 5 or 7 has improved as well.
+
+The third radial kernel SVM model has a cost parameter of 50.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Creating radial kernel SVM, cost = 50.
+SVM_R50 <- svm(WineQuality ~ ., data = wineDistTrain, kernel = "radial", 
+             cost = 50)
+
+#Evaluate the accuracy of the model.
+preds_SVM_R50 <- predict(SVM_R50, newdata = wineDistTest, type = "class")
+confusionMatrix(preds_SVM_R50, wineDistTest$WineQuality)
+```
+
+Raising the cost parameter to 50 continues to improve the accuracy of the model to 59.58%. This is the most accurate of all the SVM models. This model has the best accuracy when classifying wines that have a rating of 5 or 7. In both instances it gets more of them right than it does wrong. It is also able to correctly classify some of the wines rated as a 4 or an 8. Although this model represents an improvement, the accuracy is still fairly poor and it does not successfully classify the wine samples based on their quality ratings.
+
+#### SVM Model Comparison and Selection 
+
+Although none of the SVM models performed particularly well, they did perform better than most of the other models. The linear kernel models performed the best overall, and the polynomial models were only slightly more accurate. The radial kernels performed the best, although their accuracy levels are still sorely lacking. When using the radial kernel, the accuracy improved as the cost parameter was increased. Increasing the cost parameter allowed the model to be able to correctly classify some of the wine samples that were rated as a 4 or 8, and improved the accuracy when classifying wine samples that were rated as a 5 or 7.
+
+For these reasons, the radial kernel SVM with cost parameter equal to 50 will be chosen as the final SVM model. None of the SVM models were particularly good at classifying this data, and would not actually be applied as a classification model for the data set. It appears as though the machine learning algorithms are not able to differentiate the wine quality ratings based on the physiochemcial properties provided in the data set.
+
+#### Classification by k-Nearest Neighbor (kNN) Models
+
+k-Nearest Neighbor models use distance measures to make their predictions, similar to how Hierarchical Agglomerative Clustering alogrithms function. kNN is an example of instance-based learning, also known as "lazy learning". This is because the model stores the training examples without doing any calculations during the training process. The classification and prediction steps are delayed until the model is given new examples from the testing data. The model will then compare the similarity of each test example, calculated according to the distance between the data examples, with all of the training examples that were provided. The model predicts the test example will be the same category as the majority category in the k nearest training examples. This type of model makes no assumptions about the data, works well with complex decision functions, and the decision boundary it creates has no predefined shape (unlike SVMs). However, the models are sensitive to noisy data and have a high computational cost because all of the computation takes place during the prediction step.
+
+The kNN algorithm available in R uses the Euclidean distance measure calculation. Euclidean distance is the "straight-line" physical distance between the data entries. This means that the model requires the use of the normalized training and testing data.
+
+The testing and training data will be slightly altered to run the kNN models. None of the values are changed, but the testing data is separated into a data frame that only contains the physiochemical property values and one that contains only the single column of wine quality ratings. The same is done for the training data. 
+
+```{r}
+#Separating principal component values from labels for use in the kNN model.
+test_set_num_only <- wineDistTest[,-12]
+test_set_labels <- wineDistTest[,12]
+
+train_set_labels <- wineDistTrain[,12]
+train_set_num_only <- wineDistTrain[,-12]
+```
+
+When creating kNN models, the value of k must be chosen manually. If the value of k is too small, the model will be highly sensitive to any noise present in the training data. If the value of k is too big, the k nearest neighbors will likely include data points from other classes and confuse the model.
+
+To find the optimal value of k for this data set, a model will be created for each value of k from 1 to 100. The accuracy of each model evaluated against the testing data will be saved in a vector and that vector will be used to create a plot of model accuracy vs. value of k. The value of k that produces the highest accuracy will be chosen as the final model and its confusion matrix will be displayed.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Initializing vectors
+kNN_accuracies <- c()
+max_accuracy <- 0
+max_accuracy_k <- 0
+
+#Running the for loop that will save the accuracy of each model as the value of k is changed. k will take every value from 1 to 100. The accuracies are saved in the empty kNN_accuracies vector. The maximum accuracy and the k value that corresponds to that maximum accuracy are saved as the variables, max_accuracy and max_accuracy_k.
+for (i in 1:100) {
+  wineKNN <- knn(train = train_set_num_only, test = test_set_num_only,
+                   cl = train_set_labels$WineQuality, k = i, prob = TRUE)
+  cm <- confusionMatrix(wineKNN, test_set_labels$WineQuality)
+  accuracy_i <- cm$overall["Accuracy"]
+  kNN_accuracies <- append(kNN_accuracies, accuracy_i)
+  if (accuracy_i > max_accuracy) {
+    max_accuracy <- accuracy_i
+    max_accuracy_k <- i
+  }
+}
+
+#Create a data frame where one column is the values of k (the numbers from 1 to 100) and the second column is the accuracy that corresponds with each value of k.
+accuracy_df <- data.frame(c(1:100), kNN_accuracies)
+accuracy_df <- accuracy_df %>%
+  rename(k = c.1.100., accuracy = kNN_accuracies)
+
+#Use the accuracy data frame to create a scatter plot. The intersection of the blue and orange lines will reveal the k value of the model with the highest accuracy.
+accuracy_df %>%
+  ggplot(aes(x = k, y = accuracy)) +
+  geom_hline(yintercept = max_accuracy, color = "blue") +
+  geom_vline(xintercept = max_accuracy_k, color = "orange") +
+  geom_point() +
+  scale_y_continuous(limits = c(0.5, 0.7), n.breaks = 20) +
+  scale_x_continuous(n.breaks = 20) +
+  ggtitle("Model Accuracy According to Value of K") +
+  labs(y = "Accuracy", x = "Value of k") +
+  theme_classic()
+```
+
+The kNN model with the highest accuracy has a k value of 1. The model has the best accuracy when decisions are made based on what single data example is the closest neighbor. The accuracy drops very sharply as soon as k increases past 1, dropping 6% when k is 2. The accuracy further decreases from there, oscillating up and down with a slight overall downward trend as k approaches 100. 
+
+#### kNN Model Selection
+
+The highest accuracy model using a k value of 1 will be re-run independently to examine its complete output.
+
+```{r, cache = TRUE}
+set.seed(12345)
+#Create the kNN model using k=1 and evaluate its accuracy against the test data.
+wine_KNN1 <- knn(train = train_set_num_only, test = test_set_num_only,
+                   cl = train_set_labels$WineQuality, k = 1, prob = TRUE)
+confusionMatrix(wine_KNN1, test_set_labels$WineQuality)
+```
+
+The model has an accuracy of 62.78% compared to the NIR of 44.35%. Like many of the other models, this one has difficulty differentiating wines rated as a 5 or a 6. There are 114 wines rated as a 5 that the model classified as having a rating of 6. Also, there were 109 wines that were rated as a 6 that the model classified as having a rating of 5. The model also has trouble identifying wines rated as an 8, with an almost equal number of predictions being assigned to 6, 7, and 8. Even though the accuracy of the model is not great, it is only 18% more accurate than just guessing a quality rating of 6 every time, it is statistically still a major improvement over the NIR model.
+
+The following plots compare the distribution of the model's predictions to the distribution of the actual data.
+
+```{r, cache = TRUE}
+#Plotting the distribution of the model's predictions by digit.
+plot(wine_KNN1, main = "Distribution of Predictions by Wine Quality Rating")
+#Plotting the actual distribution of the test data by digit.
+plot(test_set_labels, main = "Distribution of Wine Quality Rating in Test Data")
+```
+
+What is very interesting about this model is that the distribution of predictions is almost identical to the distribution of wine quality ratings in the test data. So even though it is wrong a little more than one-third of the time, the model still ends up with the correct proportion of the data that should be each rating. 
+
+#### Classification by Naive Bayes Models
+
+Naive Bayes models classify examples by calculating probabilities based on the Bayes theorem. It is a relatively simple model that assumes independence among all the attributes when the class is given, which reduces the number of calculations necessary. It works by calculating the probability of observing all the attributes of a given class in conjunction with another. These pre-calculated probabilities are stored by the model, then a posterior probability is calculated for each new data example in the test data. The model picks the class prediction with the highest probability.
+
+Naive Bayes often performs well even when the independence assumption is violated, making it a popular model for classification tasks. It is also resistant to inconsistent examples because each training example can incrementally increase or decrease the estimated probability that a hypothesis about one of the classes is correct. Sometimes there is a significant cost to compute all the probabilities, and it often requires initial knowledge of the probability estimates and additional assumptions may need to be made.
+
+Naive Bayes has a problem when calculating probabilities where one of the probabilities is zero. If one of the conditional probabilities related to the attributes is zero, then the entire product becomes zero. This can be corrected by using Laplace smoothing, which replaces a zero probability with a very small nonzero probability. 
+
+The first step to selecting a model will be investigating how tuning the Laplace smoothing parameter affects the accuracy of the Naive Bayes models. A similar procedure to the one used for the kNN models will be run. 
+
+To find the optimal value of the Laplace smoothing parameter, a model will be created for each value of the parameter from 0 to 100. 0 is the default value for the parameter. The accuracy of each model evaluated against the testing data will be saved in a vector and that vector will be used to create a plot of model accuracy vs. value of the Laplace smoothing parameter. The value of the parameter that produces the highest accuracy will be chosen to be tuned further.
+
+```{r, warning = FALSE, cache = TRUE}
+set.seed(12345)
+#Initializing vectors
+NB_accuracies <- c()
+max_NB_accuracy <- 0
+max_NB_accuracy_l <- 0
+
+#Running the for loop that will save the accuracy of each model as the value of the Laplacian smoothing parameter is changed. The parameter will take every value from 0 to 100. The accuracies are saved in the empty NB_accuracies vector. The maximum accuracy and the parameter value that corresponds to that maximum accuracy are saved as the variables, max_NB_accuracy and max_accuracy_l.
+for (i in 0:100) {
+  wine_NB <- naive_bayes(WineQuality ~., data = wineTrain, laplace = i)
+  preds_NB <- predict(wine_NB, wineTest)
+  NBcm <- confusionMatrix(preds_NB, wineTest$WineQuality)
+  accuracy_i <- NBcm$overall["Accuracy"]
+  NB_accuracies <- append(NB_accuracies, accuracy_i)
+  if (accuracy_i > max_NB_accuracy_l) {
+    max_NB_accuracy <- accuracy_i
+    max_NB_accuracy_l <- i
+  }
+}
+
+#Create a data frame where one column is the values of the Laplace smoothing parameter (the numbers from 0 to 100) and the second column is the accuracy that corresponds with each value of the parameter.
+NB_accuracy_df <- data.frame(c(0:100), NB_accuracies)
+NB_accuracy_df <- NB_accuracy_df %>%
+  rename(l = c.0.100., accuracy = NB_accuracies)
+
+#Use the accuracy data frame to create a scatter plot. The intersection of the blue and orange lines will reveal the Laplace smoothing parameter value of the model with the highest accuracy.
+NB_accuracy_df %>%
+  ggplot(aes(x = l, y = accuracy)) +
+  geom_hline(yintercept = max_NB_accuracy, color = "blue") +
+  geom_vline(xintercept = max_NB_accuracy_l, color = "orange") +
+  geom_point() +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_x_continuous(n.breaks = 20) +
+  ggtitle("Model Accuracy by Value of Laplace Smoothing Parameter") +
+  labs(y = "Accuracy", x = "Value of Laplace Smoothing Parameter") +
+  theme_classic()
+```
+
+The scatter plot reveals that the Laplace smoothing parameter has no effect on the accuracy of the model. The accuracy of this model is also very poor across the board. The accuracy is very close to, if not the same as the NIR model. 
+
+The lack of changes to the accuracy based on the Laplace smoothing parameter does make sense, because this parameter is designed to help when an attribute is not present for a data example and in this data set there are no zero probabilities that would be calculated from the data.
+
+Since the value of the Laplace smoothing parameter does not affect the accuracy, the model using the default value of 0 will be re-run and its output shown.
+
+```{r, warning = FALSE, cache = TRUE}
+set.seed(12345)
+#Creating the model with Laplace smoothing parameter equal to 0, then evaluating its accuracy using the test data.
+wine_NB1 <- naive_bayes(WineQuality ~., data = wineTrain, laplace = 0)
+preds_NB1 <- predict(wine_NB1, wineTest)
+confusionMatrix(preds_NB1, wineTest$WineQuality)
+```
+
+As the scatter plot had already revealed, the accuracy of this model is 44.58% which is extremely similar to the NIR of 44.92%. Based on the p-value of 0.6133, the naive Bayes model cannot be said to perform differently from the NIR model. 
+
+To see if the accuracy of the model changes, the usekernel parameter will be set to true. This is used to estimate the class conditional densities of the predictors.
+
+```{r, warning = FALSE, cache = TRUE}
+set.seed(12345)
+#Create the Naive Bayes model and evaluate its accuracy using the test data.
+wine_NB2 <- naive_bayes(WineQuality ~., data = wineTrain, laplace = 0,
+                          usekernel = TRUE)
+preds_NB2 <- predict(wine_NB2, wineTest)
+confusionMatrix(preds_NB2, wineTest$WineQuality)
+```
+
+Tuning this parameter did result in an improvement to the accuracy of the model. The accuracy is now 50.24% and the p-value demonstrates that this model does perform better than the NIR model.
+
+One more naive Bayes model will be created, this time tuning the usepoisson parameter to TRUE. Now instead of assuming normal distributions, the Poisson distribution is used.
+
+```{r, warning = FALSE, cache = TRUE}
+set.seed(12345)
+#Create the Naive Bayes model and evaluate its accuracy using the test data.
+wine_NB3 <- naive_bayes(WineQuality ~., data = wineTrain, laplace = 0,
+                          usekernel = TRUE, usepoisson = TRUE)
+preds_NB3 <- predict(wine_NB3, wineTest)
+confusionMatrix(preds_NB3, wineTest$WineQuality)
+```
+
+Changing the usepoisson parameter to true had no effect on the accuracy of the model. The accuracy of the model is again 50.24% and looking at the confusion matrix reveals that this model made all the same predictions as the previous model.
+
+#### Naive Bayes Model Comparison and Selection
+
+Overall, the naive Bayes models performed very poorly. Adjusting the Laplace smoothing parameter had no effect on the accuracy of the model, and the accuracy remained at 44.58% which is lower than the NIR of 44.92%. This means the model was so inaccurate that a better classifier would be one that just assigns every wine a rating of 6 without ever having looked at the training data. Fortunately, adjusting the usekernel parameter to true moved the accuracy above the NIR. However, the accuracy was still at only 50.24%. Setting the usepoisson parameter to true had no effect on the model. These models were able to make predictions of quality ratings of 3 through 8, but it was just done so very poorly. All of the models classified wines that were actually rated a 6 or a 7 wrong more often than right. 
+
+The second model with the usekernel parameter set to true will be chosen as the final model. Even though this model is being chosen as the representative model for the naive Bayes technique it is important to note that these models are not suited for this classification task.
+
+## Results
+
+The final model of each model type will be featured in its own results section. These sections will discuss the strengths and weaknesses of the model, as well as highlight any insights that were provided by the model. Then the results of the two clustering models, followed by the results of classification models, will be compared and discussed. The model that had the best accuracy and came the closest to solving the problem of predicting the wine quality ratings based on these physiochemical properties will be chosen. Finally, there will be a section describing the issues and limitations related to both the data set and models used, which will also suggest improvements that could be applied to future analyses.
+
+### Assocation Rule Mining Results
+
+The association rules were able to uncover interesting patterns and relationships found in the data set. The main purpose of this analysis, however, was to see if the association rules generated while targeting right hand sides that were specific quality ratings could be summarized to create a general description what makes a wine poor, average, or good. The association rules were relatively successful in helping to generate these descriptions, although the strength of the results varied depending on what wine quality ratings were being targeted.
+
+The first group of association rules created were those where the right hand side was a wine quality rating of 7, 8, or 9. These association rules showed the strongest similarities to one another out of the three groups. Based on the itemsets a relatively strong description of the properties of the good wines can be created. A good wine generally results from having low volatile acidity, low pH, low alcohol percentage, and a medium amount of citric acid. The descriptors of low and medium are in reference to the complete distribution of each variable across the entire data set. While each of these rules had low support, meaning they did not occur often, they all had 100% confidence, so when the left hand side of the association rule did occur, the right hand side was always an item representing a good wine quality rating.
+
+The second group of association rules created were those where the right hand side was a wine quality rating of 5 or 6. These association rules had the least similarities and the left hand side itemsets were very varied from one rule to another. The only item that had some consistency throughout the rule set was alcohol percentage. An alcohol percentage between 9.2% and 9.5% often showed up on the left hand side of rules where the right hand side was a wine quality rating of 5. Due to the variation in the rule set, a concise description of what makes an average quality wine could not be created. This may be because average wines would have some good qualities and some bad qualities, and which qualities are which will vary from wine to wine. Essentially, the average wines will be somewhat of a random mix of the qualities that lead to good or poor wines.
+
+The third group of association rules created were those where the right hand side was a wine quality rating of 3 or 4. Due to the lack of wine samples that were rated as a 3, only quality ratings of 4 showed up in the right hand side of the item set. While this set of rules was still rather varied, there were slightly more similarities between the rules and enough to create a short general description of what makes a poor wine. The lowest levels of citric acid and free SO2 generally result in a poor quality wine. Considering the application of free SO2 in the wine-making process, too low of levels of this property could lead to the wine spoiling faster or containing unwanted microbes and bacteria. This is a possible explanation for a why a wine would be rated poorly.
+
+The association rule mining analysis was rather successful overall, and it gave insight into what properties to look out for when conducting the clustering and classification analyses.
+
+### K-Means Clustering Results
+
+The result of the final k-Means clustering model will be reproduced below for ease of discussion. The final model chosen was the one featuring seven clusters.
+
+```{r, cache = TRUE}
+wineKM7Bar %>%
+  ggplot(aes(x = WineQuality, fill = Clusters)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15)) 
+```
+
+The goal of the k-Means clustering analysis was to see if the model would recreate the same groupings as when the data is grouped by wine quality rating. If it were able to, this would give insight into the ability of the values of the properties to consistently correlate with the quality of the wine samples. To aid in the accuracy of the clustering analysis, a normalized version of the data set was used, since the k-Means clustering algorithm forms the clusters based on Euclidean distance calculations.
+
+Unfortunately none of the k-Means models even came close to reproducing any of the wine quality groups. The seven cluster model assigned wine samples from every wine quality group into all the different clusters. This result showed that either the model type or the data was insufficient to accurately group "similar" wines based on the values of the input variables in the same groups as their quality ratings.
+
+### Hierarchical Agglomerative Clustering Results
+
+The result of the final HAC model will be reproduced below for ease of discussion. The final model chosen was the one that used the Minkowski distance measure.
+
+```{r, cache = TRUE}
+plot(dendrogram_color4)
+```
+
+```{r, cache = TRUE}
+wineClusterResult4 %>%
+  ggplot(aes(x = WineQuality, fill = cluster)) +
+  geom_bar(stat="count") +
+  labs(title = "Cluster Assignments by Wine Quality") +
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size = 15))
+```
+
+The goal of the HAC analysis was the same as the k-Means: to see if the clusters would recreate the wine quality rating groups. Since this model type also uses distance calculations, the normalized data was once again used.
+
+Unfortunately, the HAC models were not able to reproduce the wine quality rating groups either. Two of the clusters were very large and the rest of the clusters were very small. However, the wine samples of various quality ratings were still spread across all the different groups. Based on the output there is no way to say that one cluster would represent a quality rating or even a grouping of wine quality ratings like what was done in the association rule mining analysis. Once again, the results showed that either the HAC method or the data were insufficient to create clusters that matched the wine quality rating groupings.
+
+### Decision Tree Classification Results
+
+The final decision tree model chosen was the one with the complexity parameter set to a value of 0.003. This tree had 14 splits, and its terminal nodes only featured wine quality ratings of 5, 6, or 7. Even with this massive limitation, it still had the second best accuracy of the decision tree models at 52.71%. The only decision tree with better accuracy was the completely unpruned tree with over 800 splits. Due to this model being completely uninterpretable and unable to be visualized, it was not selected as the final model.
+
+The decision tree and confusion matrix will be reproduced below. Normalization is not required when building decision trees so the original data set was used.
+
+```{r, cache = TRUE}
+fancyRpartPlot(DT_model2)
+confusionMatrix(preds_DT2, wineTest$WineQuality)
+```
+
+Even though this model was chosen as the final representative model for the decision trees, it does not do a good job of correctly predicting the wine quality rating based on the values of the input variables. This model only classified about 50% of the wines with a quality rating of 5 correctly. It also incorrectly classified the great majority of wines with a quality rating of 7. The model was only successful when classifying wines with a quality rating of 6, and even then it made over 150 mistakes. Once again, this analysis leads to the conclusion that either this type of classification model is not well-suited for the task or the data does not provide enough information to classify the wines by their quality ratings.
+
+Calling the varImp (variable importance) function on the decision tree model can reveal the variables that were most significant when determining the outcomes of the decision tree.
+
+```{r, cache = TRUE}
+#Display the variable importance in descending order of overall importance.
+imp <- as.data.frame(varImp(DT_model2))
+imp <- data.frame(overall = imp$Overall,
+                  names   = rownames(imp))
+imp[order(imp$overall,decreasing = TRUE),]
+```
+
+PercentAlc, VolatileAcidity, Density, and Chlorides were the most important variables for this type of model. This provides important information for future analyses. A threshold for importance could be chosen and those variables that exceed the threshold would be retained in a new data set. Those variables that fall below the threshold could be replaced by other properties that may be more helpful in classifying the data according to wine quality rating.
+
+### Random Forest Classification Results
+
+The final random forest model chosen was the one that grew 300 decision trees to create its model. The confusion matrix for this model will be reproduced below.
+
+```{r, cache = TRUE}
+confusionMatrix(predsRF1, wineTest$WineQuality)
+```
+
+While only 68% accuracy is not great, the random forest model performed very well compared to the other types of models. This model was able to correctly classify some of the wines with quality ratings of 4 and 8. It also predicted more than three-fourths of the wines rated as a 5 correctly and more than half of the wines rated as a 7 correctly. These results are notable because that was what many of the other models had the most trouble doing. It appears that a random forest model may be the most well-suited for this classification task. Although with an accuracy below 70%, the results still tend to suggest that there could be an issue with the data. The variables that are present in the data set do not seem to lead to the same classes as the wine quality ratings based on their values.
+
+### Support Vector Machine Classification Results
+
+The final support vector machine model chosen was the one that used the radial kernel with a cost parameter equal to 50. The confusion matrix for this model will be reproduced below.
+
+```{r, cache = TRUE}
+confusionMatrix(preds_SVM_R50, wineDistTest$WineQuality)
+```
+
+This model was chosen because its accuracy of 59.58% was the highest of all the SVM models. It was also able to correctly classify some of the wine samples that were rated as a 4 or an 8. Similar to the other types of models, it has difficulty when classifying wines that were rated as a 5 or a 7. It performs best when classifying wines rated as a 6, but even then it made over 200 mistakes. 
+
+All the SVM models produced underwhelming results and they lead to the same conclusion as many of the previous model types. Either SVM models are not suited for this classification task or there is an underlying issue with the data that prevents successful classification according to the wine quality ratings.
+
+### K Nearest Neighbors Classification Results
+
+The final k Nearest Neighbors model chosen was the model where k was equal to 1. All of the other models created using values of k from 1 to 100 had a significant drop in accuracy when compared to the k = 1 model. The confusion matrix for this model will be reproduced below. Since this algorithm uses distance calculations, the normalized training and testing data sets were used for the analysis.
+
+```{r, cache = TRUE}
+confusionMatrix(wine_KNN1, test_set_labels$WineQuality)
+```
+
+This model was one of the few where at least one prediction corresponded with every available quality rating. Even so, this model had significant shortcomings with an accuracy of only 62.78%. The k nearest neighbors model classified the majority of wines rated a 5, 6, or 7 correctly. It was able to classify some of the wines rated a 4 or 8 correctly, although the model had rather poor accuracy with these. This model was one of the more successful models in the entire data set. Since so many methods are being used and 62.78% is among the best accuracies, the results are again implying that there is an issue with the data set that is not allowing for more successful classifications.
+
+### Naive Bayes Classification Results
+
+The final naive Bayes model chosen was the one with a Laplace smoothing parameter of 0 and the usepoisson parameter set to true. The confusion matrix for this model is reproduced below.
+
+```{r, cache = TRUE}
+confusionMatrix(preds_NB2, wineTest$WineQuality)
+```
+
+The naive Bayes models performed particularly poorly. Regardless of the value of the Laplace smoothing parameter, all the models created that did not have the usepoisson parameter set to true had worse accuracy than the No Information Rate model. The final naive Bayes model was not much better with an overall accuracy of 50.24%. The confusion matrix reveals that this model actually classifies wines with a rating of 6 incorrectly more often that it does correctly. This is fairly unique behavior compared to the other types of models. Even though the accuracy when classifying wines rated as a 6 is lower, the model correctly classifies the majority of wines rated as a 5 or 7 and was able to predict every wine quality rating except a 9.
+
+Once again, these results imply that either this model type is not well-suited for a classification task involving this data or that it is the data that is causing all the accuracy issues.
+
+### Comparison of Clustering Models Results
+
+The k-Means and HAC models returned very similar results. The models were unable to create clusters that matched the wine quality rating groups. In fact, the models mixed all of the different wine quality rating groups into as many different clusters as they could. This resulted in some clusters containing many wine samples from almost all of the wine quality rating groups. While these models did not provide strong results towards the goal of using the physiochemical properties to predict the quality of the wine, it did begin to highlight that the data set might not be well suited for making those predictions.
+
+### Comparison of Classification Models Results
+
+The following table summarizes the accuracies of each of the final models chosen from the different types of supervised machine learning techniques used in the analysis.
+
+```{r}
+model_names <- c("Random Forest Model with 300 Trees", "k Nearest Neighbors with k = 1", "SVM with Radial Kernel and Cost = 50", "Decision Tree with Complexity Parameter = 0.003", "Naive Bayes with Laplace = 0 and usepoisson = TRUE")
+model_accuracy <- c("68.17%", "62.78%", "59.58%", "52.76%", "50.24%")
+model_table <- data.frame(model_names, model_accuracy)
+kable(model_table, col.names = c("Final Model", "Accuracy"), caption = "Accuracy Level of Each Final Model")
+```
+
+The only two model types that achieved greater than 60% accuracy were the kNN and random forest models. These models, however, still had significant issues. The models had difficulties predicting the lowest and highest wine quality ratings. The decision tree had the worst accuracy overall when classifying wine samples rated a 5, 6, or 7. The naive Bayes model was more successful at classifying wines rated a 5 or 7, but this was offset by having the worst accuracy when classifying wines rated a 6 out of all the models. The SVM, kNN, and random forest models all had better accuracy when classifying wines rated as a 5, 6, or 7, and issues classifying any other quality ratings. The differences in the accuracies of these models boiled down to how successful they were at classifying those wines rated as a 5, 6, or 7. 
+
+Taking all of these results into account, the overall conclusion that can be made is that the data set may not be robust enough to support this classification task. If it were, at least one of the model types should have been more successful. The physiochemical properties in the data set may not be the ones that impact the quality rating the most or there could be a problem with the ratings themselves.
+
+### Final Model Selection
+
+One of the final models will be selected as the model that made the best effort towards solving the problem of predicting the wine quality ratings using the physiochemical properties provided by the data set. This model is the random forest model with 300 trees. This model had the best accuracy by far, and therefore was able to make the most correct classifications across all the different wine quality ratings.
+
+In one last effort to see if this model type can make more accurate predictions, it will be run with a reduced number of features. The correlation analysis revealed that there was a correlation between Density and PercentAlc and Density and ResidSugar, as well as FreeSO2 and TotalSO2. Correlation among the input variables provides the biggest issues when running linear regressions, but will removing the variable in each of the pairs that the random forest relied on less make a difference for the overall accuracy?
+
+Density was used in many more nodes than PercentAlc and ResidSugar, and TotalSO2 was used in slightly more nodes than FreeSO2. Thus, ResidSugar, PercentAlc, and TotalSO2 will be removed as input variables and one last random forest model will be created.
+
+```{r, cache = TRUE}
+#Final random forest model with feature selection to see if accuracy improves.
+set.seed(12345)
+rf_feature <- randomForest(WineQuality ~ FixedAcidity + VolatileAcidity + CitricAcid + Chlorides + FreeSO2 + Density + pH + Sulfates + PercentAlc, data = wineTrain, ntree = 300, importance = TRUE, proximity = TRUE)
+predsRF_feature <- predict(rf_feature, newdata = wineTest, type = "class")
+confusionMatrix(predsRF_feature, wineTest$WineQuality)
+```
+
+Using the reduced number of input variables negatively impacted the accuracy. It was reduced from 68.17% to 66.87%. Removing some of the correlated variables did not improve the model.
+
+The best model is the 300 tree random forest model using all the input variables. Even though this is the best model, it still has significant problems. It has a very difficult time classifying several of the wine quality ratings. Since this is the best model created, if an additional data set was provided with the physiochemical properties before the wines were judged, this model would return the most similar results when compared to the forthcoming ratings from the wine experts.
+
+### Issues, Limitations, and Future Improvements
+
+Based on the results of all the models, there are clearly some factors that are holding back the accuracies of the models. The first possible explanation is that the data set is not appropriate for making these classifications. It could be that the judges are focusing on properties of the wine that do not originate from the values of the physiochemical properties in the data set. While many of these values do influence the taste of the wine, it could be that the flavor is more strongly influenced by other aspects.
+
+The second possible explanation is that the way in which the quality ratings were assigned to the wines make this an especially difficult output to predict. The wines are tasted by at least three judges and the final rating is the median of all the individual ratings. So, as an extreme, but possible example, one judge could love the wine and rate it a 10. Then the next judge could hate the wine and rate it a 2. The third judge doesn't mind the wine, but isn't impressed either and rates it a 6. This very divisive wine ends up with a final rating of a 6, but everything that went into that final rating is essentially hidden from the data set. This scenario could also explain why the median values of the distributions of many of the physiochemical properties were so similar for the different wine quality ratings. 
+
+These two explanations can be combined to conclude that maybe it is just really difficult to predict how the wines will be judged and that is why the accuracy was low. These judges are all real people with different likes and dislikes, all bringing unique experiences to their judging. Maybe a judge had a really bad day and this will cause them to rate the wines lower than they normally would. Maybe a judge just really prefers sweet wines to dry wines and will rate the dry wines lower regardless of how good they are for a dry wine. There are so many biases and so much subjectivity that can play into this rating process, that it is possible that a model with 68.17% accuracy is actually producing a phenomenal result based on the inherent difficulty of the task.
+
+Besides these issues, the data set had an obvious limitation. Since the final ratings are medians of individual scores they will tend towards the values at the center of the distribution. When many scores are collected, the distribution of quality ratings will actually form a normal distribution. This is an example of the central limit theorem and law of large numbers at work. This means that no matter how much data is collected there will be a much greater number of 5s, 6s, and 7s than any other rating unless some wine samples are purposely excluded. Perhaps a custom data set could be made, where instead of including all the samples, it includes approximately 50 or 100 wine samples in each quality rating category. This much more balanced data set could produce better results, even while having fewer overall data examples to train and test the models on.
+
+Another possibility for future investigations could be to create data sets based on the individual scores of each wine expert before the median is taken. That way separate models could be created that could predict the scores each individual judge is most likely to give to a new wine sample. Since the scores are not being manipulated at all, there is a good chance that a model would be able to more closely replicate the choices of a single judge, instead of trying to build a model that can replicate the combined choices of multiple judges.
+
+Unfortunately this particular data set was limited by copyright issues, so it would not be possible to get any of this additional data on these exact wine samples. However, this does present a fun opportunity to conduct one's own research by hosting a new round of wine sample taste tests.
+
+## Conclusion
+
+Wine has been around for thousands of years, almost as long as civilizations themselves have existed. Over all that time, the process for making wine, as well as the ingredients used, have changed. Each change that becomes a new standard stems from it making a positive impact on the taste of the wine. With many thousands of years of wine-making, a process similar to natural selection takes place. The better quality wines continue to be created and improved upon, while the worse quality wines are left behind. In order to create better and better quality wines, there must be people who understand what parts of the process, whether it is a wine-making step, like how long the wine is aged in a barrel for, or how much of a physiochemical component is present in the wine, most strongly correlate to the wine having a great taste. Since humans are able to do this, can a computer learn to do this as well?
+
+Based on the data available for this analysis, the models were not able to learn the decision making process the judges used when tasting the wine. That resulted in low accuracy when trying to predict what quality rating a wine sample would get when it was presented with the values of its physiochemical properties. It could be that these properties were not the ones that impact the taste of the wine the most, that the taste of the wine is actually more influenced by other parts of the wine-making process, or that this is actually an extremely difficult task based on the subjective nature of scoring wines.
+
+Even though the results were not very positive, they still provide a lot of insight towards being able to predict wine quality ratings in the future. Other data could be used or entirely new surveys could be conducted. Unfortunately, though, there is no guarantee that the accuracy of the predictions would improve in new studies. This may still be one of the tasks that only a human can complete. Directly tasting the wine is a much different experience than a computer processing numbers that "describe" the taste of the wine. For now, any budding wine connoisseurs should continue to rely on the ratings of expert human judges to help them pick out their next favorite drink.
