@@ -1,0 +1,578 @@
+---
+title: "IST687 Final Project"
+output: html_document
+date: "09-19-2022"
+---
+Group members: Bryan D'Amico, Gustavo Gyotoku, Mackenna McCosh, Sachi Singh
+
+## Analysis of the Most Popular Songs on Spotify Data Set
+
+The purpose of this report is to record the data manipulation and analysis procedures that were conducted during the course of preparing the presentation on the Spotify Most Popular Songs data set. The goal of the analysis is to give insight on what kind of artist should be newly signed to the label and what kind of song they should produce to have the best chances of having the next highly popular song on Spotify.
+
+### Part 1: Explanation of Variables and Preparing For Analysis
+
+We will begin by introducing the definitions of the variables for this data set. These definitions were taken from the Kaggle page for the data set which was uploaded by Mark Koverha. The page for the data set can be found at the following URL: https://www.kaggle.com/datasets/paradisejoy/top-hits-spotify-from-20002019
+
+The explanations in this paper assume the reader is familiar with the definitions for each variable. Also, please note that although the title of the data set on the Kaggle website says 2000 to 2019, the data ranges from 1998 to 2020.
+
+Before we began any analyses on the data, we loaded all the packages we were going to use. Next, we set a seed so the tests that involve randomness could be reproduced. Then we read in the data set, and after taking a look at it realized there were duplicate songs and songs with a popularity rating of 0. These were removed from the data set. The remaining data still exceeded the requirement of over 10,000 values.
+```{r message=FALSE, warning=FALSE}
+#Loading packages for data manipulation and analysis.
+library(tidyverse)
+library(rMIDAS)
+library(PerformanceAnalytics)
+library(readr)
+library(BEST)
+library(caret)
+```
+
+```{r}
+#Some tests (such as the Bayesian BESTmcmc models) involve elements of randomness. If the tests are desired to be reproduced then the user should set the same seed.
+set.seed(12345)
+
+#Reading in the csv data set and saving it as a data frame.
+dfSpotify <- read_csv("~/Desktop/Intro Data Science/songs_normalize.csv")
+
+#While exploring the data, we noticed there were duplicated songs and songs with a popularity rating of 0. These were removed. Also, we felt that measuring the length of a song in minutes was more user friendly than in milliseconds. 
+dfSpotifyPopular <- dfSpotify %>%
+  filter(popularity != 0) %>%
+  filter(duplicated(song) == FALSE) %>%
+  mutate(duration_min = duration_ms / 1000 /60)
+
+#Confirming that the modified data set still meets the project criteria.
+dim(dfSpotifyPopular)
+```
+
+### Part 2: How Have Popular Songs Changed Over Time?
+
+We started by creating line plots showing the change in the median values of the songs by year using the main numeric metrics in the data set. We hoped to see positive, negative, or flat trends that could explain how people's taste in music is changing or staying the same over time.
+
+Liveness trended upwards for some time, but returned back down to a low level during the most recent years in the data set. Higher tempo songs are currently preferred over slower songs. The overall valence of popular songs, which is a measure of how happy the song sounds, has seen a decrease over time. Speechiness, which is a measure of how much of the song sounds like spoken word, decreased during the years between 2008 and 2014, but has recently seen an increase above its previous levels. In recent years, the acousticness, or how acoustic a song sounds, has increased. We can also see that at no point in time have the most popular songs been instrumental, or lacking in vocals. Danceability showed a U shaped plot with the rating for the most popular songs dipping down from 2005 to 2010, but is at a higher value again in recent years. Recently, the energy, or intensity of the song, has decreased among the most popular songs. The length of the most popular songs has seen a steady decline over time. Lastly, with the exception of a spike during the middle years of the data set, the loudness of the most popular songs has stayed fairly constant. Please note that our analysis of this data was focused on trends and not on the actual values of the metrics. For example, although we discussed the change in speechiness, it should be noted that by looking at the y-axis of the histogram that speechiness has never been favorable over the duration of the data set.
+
+```{r}
+#To visualize the changes in each of the recorded song metrics over time, a series of line plots were made. All of these line plots show the change in the median value of the metric over time. First, we filtered the data set to only include songs from the years 1999 to 2019 because there is only one song in the list from 1998 and one song from 2000. The group_by() and summarize() functions are used to calculate the median value of the metric for each year. 
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_liveness = median(liveness)) %>%
+  ggplot(aes(x = year, y = median_liveness)) +
+  geom_line() +
+  ggtitle("Median Liveness of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Liveness")
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_tempo = median(tempo)) %>%
+  ggplot(aes(x = year, y = median_tempo)) +
+  geom_line() +
+  ggtitle("Median Tempo of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Tempo")
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_valence = median(valence)) %>%
+  ggplot(aes(x = year, y = median_valence)) +
+  geom_line() +
+  ggtitle("Median Valence (Happiness) of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Valence")
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_speechiness = median(speechiness)) %>%
+  ggplot(aes(x = year, y = median_speechiness)) +
+  geom_line() +
+  ggtitle("Median Presence of Spoken Word Attributes of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Speechiness")
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_acousticness = median(acousticness)) %>%
+  ggplot(aes(x = year, y = median_acousticness)) +
+  geom_line() +
+  ggtitle("Median Acousticness of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Acousticness")
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_instrumentalness = median(instrumentalness)) %>%
+  ggplot(aes(x = year, y = median_instrumentalness)) +
+  geom_line() +
+  ggtitle("Median Lack of Vocals of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Instrumentalness")
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_danceability = median(danceability)) %>%
+  ggplot(aes(x = year, y = median_danceability)) +
+  geom_line() +
+  ggtitle("Median Danceability of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Danceability")
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_energy = median(energy)) %>%
+  ggplot(aes(x = year, y = median_energy)) +
+  geom_line() +
+  ggtitle("Median Intensity of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Energy")
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_duration_min = median(duration_min)) %>%
+  ggplot(aes(x = year, y = median_duration_min)) +
+  geom_line() +
+  ggtitle("Median Length in Minutes of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Duration in Minutes")
+
+dfSpotifyPopular %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_loudness = median(loudness)) %>%
+  ggplot(aes(x = year, y = median_loudness)) +
+  geom_line() +
+  ggtitle("Median Loudness of Popular Songs Over Time") +
+  labs(x = "Year", y = "Median Loudness")
+```
+
+After examining the line plots and taking note of the trends, we separated the main data set into multiple data sets broken up by approximately half decades.
+
+```{r}
+#Creating separate data sets breaking up the data into approximately 5 year increments to further examine the changes in song metrics over time.
+dfSpotify2005 <- dfSpotifyPopular %>%
+  filter(year <= 2005) %>%
+  filter(year >= 2000) 
+
+dfSpotify2010 <- dfSpotifyPopular %>%
+  filter(year <= 2010) %>%
+  filter(year > 2005) 
+
+dfSpotify2015 <- dfSpotifyPopular %>%
+  filter(year <= 2015) %>%
+  filter(year > 2010) 
+
+dfSpotify2020 <- dfSpotifyPopular %>%
+  filter(year <= 2020) %>%
+  filter(year > 2015) 
+```
+
+This was done in preparation for running a series of t-tests on the data to see if there have been significant changes among some of the metrics of the most popular songs over time. We focused on variables that appeared to change over time based on the line plots. First we investigated the duration of the songs. Industry research claims that the increasing popularity of streaming services, such as Spotify, has led to people preferring shorter songs. The following t-tests are an attempt to answer questions such as "Do popular songs tend to be shorter as time moves forward?" For all t-tests we will use an alpha threshold of 0.05 to determine statistical significance.
+
+```{r}
+#t-test comparing the mean length of songs from 2006 to 2010 with the mean length of songs from 2000 to 2005.
+t.test(dfSpotify2010$duration_min, dfSpotify2005$duration_min)
+```
+When performing the t-test the sample means are subtracted in the order in which the samples are given to the function. So negative values mean the 2010 songs are shorter and positive values mean that the 2005 songs are shorter. The results of this test are statistically significant with a p-value of less than 0.05. We reject the null hypothesis that there is no credible difference between the mean durations of popular songs from 2006 to 2010 and 2000 to 2005. Since the 95% confidence interval spans only negative values and does not overlap with 0, this evidence suggests that popular songs have gotten shorter. 
+```{r}
+#t-test comparing the mean length of songs from 2011 to 2015 with the mean length of songs from 2006 to 2010.
+t.test(dfSpotify2015$duration_min, dfSpotify2010$duration_min)
+```
+The results of this test are statistically significant with a p-value of less than 0.05. We reject the null hypothesis that there is no credible difference between the mean durations of popular songs from 2011 to 2015 and 2006 to 2010. Since the 95% confidence interval spans only negative values and does not overlap with 0, this evidence suggests that popular songs have gotten shorter. 
+
+```{r}
+#t-test comparing the mean length of songs from 2016 to 2020 with the mean length of songs from 2011 to 2015.
+t.test(dfSpotify2020$duration_min, dfSpotify2015$duration_min)
+```
+The results of this test are statistically significant with a p-value of less than 0.05. We reject the null hypothesis that there is no credible difference between the mean durations of popular songs from 2016 to 2020 and 2011 to 2015. Since the 95% confidence interval spans only negative values and does not overlap with 0, this evidence suggests that popular songs have gotten shorter. 
+
+```{r}
+#t-test comparing the mean length of songs from 2016 to 2020 with the mean length of songs from 2000 to 2005.
+t.test(dfSpotify2020$duration_min, dfSpotify2005$duration_min)
+```
+It makes sense that when comparing the durations of songs from 2000 to 2005 with the durations of songs from 2016 to 2020, we see a similar result to the previous tests. Again, we reject the null hypothesis that there is no credible difference between the mean durations of popular songs from 2016 to 2020 and 2000 to 2005. Since the 95% confidence interval spans only negative values and does not overlap with 0, this evidence suggests that popular songs have gotten shorter.
+
+To accompany our frequentist analysis using t-tests, we decided to also perform a Bayesian analysis. The following creates a distribution of posterior probabilities for estimating the mean length of popular songs released between 2000 and 2005 compared to those released between 2016 and 2020. 
+```{r}
+#Saving the BESTmcmc process to display the plot of the distribution of posterior probabilities.
+songBestDuration <- BESTmcmc(dfSpotify2020$duration_min, dfSpotify2005$duration_min)
+plot(songBestDuration)
+
+```
+We see that t100% of our mean difference estimations are negative. This is overwhelming evidence that the mean duration of songs from 2000 to 2005 are longer than the mean duration of those from 2016 to 2020. The most likely estimate for the difference in length is about one half of a minute.
+
+Based on all of the evidence, we are comfortable in claiming that the most popular songs in recent years are shorter than they were in the past.
+
+Next, we investigated the change over time for valence, or how happy the song sounds. For this paper, we have chosen to show just the t-test comparing the valence from 2000 to 2005 with 2016 to 2020. The code for the other t-test have been provided and commented out.
+
+```{r}
+#t.test(dfSpotify2010$valence, dfSpotify2005$valence)
+#t.test(dfSpotify2015$valence, dfSpotify2010$valence)
+#t.test(dfSpotify2020$valence, dfSpotify2015$valence)
+
+t.test(dfSpotify2020$valence, dfSpotify2005$valence)
+```
+Based on the p-value we can reject the null hypothesis. This test suggests that the valence of popular songs decreased since the 95% confidence interval is entirely negative.
+
+The following is the Bayesian analysis of valence.
+```{r}
+#Saving the BESTmcmc process to display the plot of the distribution of posterior probabilities.
+songBestValence <- BESTmcmc(dfSpotify2020$valence, dfSpotify2005$valence)
+plot(songBestValence)
+
+```
+We see that 100% of the distribution is greater than 0. This gives us very strong evidence that popular songs between 2000 and 2005 were happier than songs released between 2016 and 2020. The most likely estimate for the difference in mean valence is a little more than one tenth.
+
+We will also investigate the change in acousticness over time. Like the previous set of t-tests, we will display the results for the comparison from between 2000 and 2005 to between 2016 and 2020 with the other tests commented out.
+```{r}
+#t.test(dfSpotify2010$acousticness, dfSpotify2005$acousticness)
+#t.test(dfSpotify2015$acousticness, dfSpotify2010$acousticness)
+#t.test(dfSpotify2020$acousticness, dfSpotify2015$acousticness)
+t.test(dfSpotify2020$acousticness, dfSpotify2005$acousticness)
+```
+Based on the p-value we can reject the null hypothesis. This test suggests that the acousticness of popular songs increased since the 95% confidence interval is entirely positive.
+
+The following is the Bayesian analysis of acousticness.
+```{r}
+#Saving the BESTmcmc process to display the plot of the distribution of posterior probabilities.
+songBestAcoustic <- BESTmcmc(dfSpotify2020$acousticness, dfSpotify2005$acousticness)
+plot(songBestAcoustic)
+
+```
+We can see from the distribution of posterior probabilities there is a small but certain increase in the mean acousticness of songs over time, with the most likely estimate of that increase being 0.0358.
+
+Lastly, we will take a look at energy. Again we will show the results of the t-test comparing the mean energy of the songs released between 2016 and 2020 with those released between 2000 and 2005. The other t-tests are commented out.
+```{r}
+#t.test(dfSpotify2010$energy, dfSpotify2005$energy)
+#t.test(dfSpotify2015$energy, dfSpotify2010$energy)
+#t.test(dfSpotify2020$energy, dfSpotify2015$energy)
+t.test(dfSpotify2020$energy, dfSpotify2005$energy)
+```
+Based on the p-value we can reject the null hypothesis that there is no difference in the mean values for energy. Since, the 95% confidence interval is entirely negative, we have evidence that suggests that the energy of the most popular songs has decreased over time.
+
+The following is the Bayesian analysis of energy.
+```{r}
+#Saving the BESTmcmc process to display the plot of the distribution of posterior probabilities.
+songBestEnergy <- BESTmcmc(dfSpotify2020$energy, dfSpotify2005$energy)
+plot(songBestEnergy)
+
+```
+This time we see a small but certain decrease in the mean energy of the most popular songs over time, with the most likely estimate of that decrease being 0.0563.
+
+### Part 3: How Popular are the Different Genres of Music?
+
+Next, we broke up the main data set into multiple data sets by major genre. The genres chosen were rock, hip hop, R&B, country, dance, and pop. 
+```{r}
+#The grepl() function was used to filter because many songs had multiple genres listed. So for example, any song that has rock listed as one of its genres is sent to the rock data frame. If a song belongs to two major genres such as pop-rock, then it will appear in the rock data frame and the pop data frame.
+dfRock <- dfSpotifyPopular %>%
+  filter(grepl("rock", genre))
+
+dfPop <- dfSpotifyPopular %>%
+  filter(grepl("pop", genre))
+
+dfHipHop <- dfSpotifyPopular %>%
+  filter(grepl("hip hop", genre))
+
+dfCountry <- dfSpotifyPopular %>%
+  filter(grepl("country", genre))
+
+dfDance <- dfSpotifyPopular %>%
+  filter(grepl("Dance", genre)) 
+
+dfRB <- dfSpotifyPopular %>%
+  filter(grepl("R&B", genre))
+```
+
+To explore the question of "Is one genre more popular than the others?" a series of box plots were created that show the distribution of popularity ratings across each genre. A summary() of each was also run to have the exact numbers shown in the box plots.
+```{r}
+#Each box plot shows the distribution of popularity for the given genre. The summary() function is called afterwards so the reader can see exactly what numbers the box plot is representing.
+dfRock %>%
+  ggplot(aes(x = popularity))+
+  geom_boxplot() + 
+  coord_flip() +
+  ggtitle("Distribution of Popularity Ratings for Rock Songs")
+summary(dfRock$popularity)
+
+dfPop %>%
+  ggplot(aes(x = popularity))+
+  geom_boxplot() + 
+  coord_flip() +
+  ggtitle("Distribution of Popularity Ratings for Pop Songs")
+summary(dfPop$popularity)
+
+dfHipHop %>%
+  ggplot(aes(x = popularity))+
+  geom_boxplot() + 
+  coord_flip() +
+  ggtitle("Distribution of Popularity Ratings for Hip Hop Songs")
+summary(dfHipHop$popularity)
+
+dfCountry %>%
+  ggplot(aes(x = popularity))+
+  geom_boxplot() + 
+  coord_flip() +
+  ggtitle("Distribution of Popularity Ratings for Country Songs")
+summary(dfCountry$popularity)
+
+dfDance %>%
+  ggplot(aes(x = popularity))+
+  geom_boxplot() + 
+  coord_flip() +
+  ggtitle("Distribution of Popularity Ratings for Dance Songs")
+summary(dfDance$popularity)
+
+dfRB %>%
+  ggplot(aes(x = popularity))+
+  geom_boxplot() + 
+  coord_flip() +
+  ggtitle("Distribution of Popularity Ratings for R&B Songs")
+summary(dfRB$popularity)
+```
+
+It appears that rock may be the most popular genre. To test this, we created another data frame that contained every popular song not in the rock genre. This is to perform a t-test comparing the mean popularity of rock songs vs. the mean popularity of all other songs. Note that unlike before there is no overlap of songs in the two data sets. For a song to quality for the "not rock" data set it must not have rock listed for any of its genres.
+
+```{r}
+#Creating a data frame that contains every song that is not in the rock genre. To do this we filtered using the grepl() function again, only this time we negated it to get all the songs where the genre data did not contain the word rock.
+dfNoRock <- dfSpotifyPopular %>%
+  filter(!grepl("rock", genre))
+```
+
+Now we will perform a t-test to see if there is a credible difference between the mean popularity ratings of all the songs in the rock genre vs those songs not in the rock genre.
+
+```{r}
+t.test(dfRock$popularity, dfNoRock$popularity)
+```
+
+The results of the t-test are not significant so we fail to reject the null hypothesis that the true difference in mean popularity of rock songs vs. all other songs is equal to 0. We did note that from looking at the 95% confidence interval that the great majority of the uncertainty in the variation would show rock as being more popular. 
+
+We also ran a Bayesian BESTmcmc process to analyze the difference of means.
+```{r}
+rockPopularityBEST <- BESTmcmc(dfRock$popularity, dfNoRock$popularity)
+plot(rockPopularityBEST)
+```
+This test tells us that 100% of the differences of sample means were positive with a most likely estimate for the mean difference in popularity being 2.95 points in favor of rock songs.
+
+While the two results conflict with one another, we feel that the Bayesian output is convincing enough to move forward under the assumption that rock songs are on average more popular among the most popular songs on Spotify.
+
+Since we will conclude that rock is, on average, the most popular genre we decided to focus on that genre moving forward. 
+
+### Part 4: What Makes a Popular Rock Song?
+
+Next, we investigated the most popular songs in the rock genre to see if these songs were following the same trends over time that we saw in the overall data set including all genres.
+
+```{r}
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_liveness = median(liveness)) %>%
+  ggplot(aes(x = year, y = median_liveness)) +
+  geom_line() +
+  ggtitle("Median Liveness of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Liveness")
+
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_tempo = median(tempo)) %>%
+  ggplot(aes(x = year, y = median_tempo)) +
+  geom_line() +
+  ggtitle("Median Tempo of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Tempo")
+
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_valence = median(valence)) %>%
+  ggplot(aes(x = year, y = median_valence)) +
+  geom_line() +
+  ggtitle("Median Valence (Happiness) of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Valence")
+
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_speechiness = median(speechiness)) %>%
+  ggplot(aes(x = year, y = median_speechiness)) +
+  geom_line() +
+  ggtitle("Median Presence of Spoken Word Attributes of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Speechiness")
+
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_acousticness = median(acousticness)) %>%
+  ggplot(aes(x = year, y = median_acousticness)) +
+  geom_line() +
+  ggtitle("Median Acousticness of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Acousticness")
+
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_instrumentalness = median(instrumentalness)) %>%
+  ggplot(aes(x = year, y = median_instrumentalness)) +
+  geom_line() +
+  ggtitle("Median Lack of Vocals of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Instrumentalness")
+
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_danceability = median(danceability)) %>%
+  ggplot(aes(x = year, y = median_danceability)) +
+  geom_line() +
+  ggtitle("Median Danceability of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Danceability")
+
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_energy = median(energy)) %>%
+  ggplot(aes(x = year, y = median_energy)) +
+  geom_line() +
+  ggtitle("Median Intensity of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Energy")
+
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_duration_min = median(duration_min)) %>%
+  ggplot(aes(x = year, y = median_duration_min)) +
+  geom_line() +
+  ggtitle("Median Length in Minutes of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Duration in Minutes")
+
+dfRock %>%
+  filter(year %in% c(1999:2019)) %>%
+  group_by(year) %>%
+  summarize(median_loudness = median(loudness)) %>%
+  ggplot(aes(x = year, y = median_loudness)) +
+  geom_line() +
+  ggtitle("Median Loudness of Popular Rock Songs Over Time") +
+  labs(x = "Year", y = "Median Loudness")
+```
+We can see that although there is a lot of fluctuation in the median liveness, there is not a strong upwards or downwards trend. The tempo of the most popular rock songs appears to have a slight upwards trend. This matches what we saw earlier across all genres of music. There is a lot of fluctuation in median valence, but we do see a dip downwards during the most recent years. There is also a lot of fluctuation for speechiness, but note from the y-axis that it is always at a low level. Acousticness is on the rise in recent years, closely matching the trend across all genres of music. Instrumentalness is overall very low just like it was across all genres. Danceability shows an upwards trend like it did across all genres, but for rock there is a change where there is a big dip downwards in the most recent years. The energy, or intensity, of the songs have trended downwards like it did across all genres. The length of rock songs does not show a strong downwards trend like there was across all genres. The loudness of rock songs has also shown a similar trend upwards then back downwards like there was across all genres.
+
+We believe these observations can be used to help understand what is currently popular in the rock genre.
+
+### Part 5: Predicting Rock Song Popularity
+
+The goal of this section is to build a model that will predict if a rock song is going to be popular based on the values of some of the song metrics contained in the data.
+
+Before building a model we will explore the correlation of the variables in the rock genre data.
+```{r}
+#Look at how all the variables in Rock are correlated
+pairs(dfRock[,c("popularity", "danceability", "energy", "loudness", "speechiness", "instrumentalness", "liveness", "valence", "tempo", "duration_min")])
+```
+
+We did not see any good linear correlation between popularity and any of the other variables. Even so, we created predictive models to see if we would be able to make predictions with any level of accuracy.
+
+To prepare to try to predict if a rock song will be popular based on some of its metrics we create a binary variable popular that takes a value of 1 if the popularity rating is greater than 68 and a value of 0 otherwise. The popularity rating of 68 was chosen because that is approximately the median popularity value of rock songs in the data set. The variables were chosen based on what we thought fans of rock music would care about in their music.
+
+```{r}
+#Adding the popular column to the data set. This variable takes on a value of 1 if the popularity of the song is greater than 68 and 0 otherwise. We also make sure this variable was of mode factor.
+dfRock$popular <- ifelse(dfRock$popularity > 68, 1, 0)
+dfRock$popular <- as.factor(dfRock$popular)
+```
+
+The predictive model will be created  using support machine vectors. First we partitioned the data into training and testing sets.
+```{r}
+#70% of the data will be used for training the model and the remaining 30% will be used to test the model.
+trainList <- createDataPartition(y = dfRock$popular, p = 0.7, list = FALSE)
+trainData <- dfRock[trainList,]
+testData <- dfRock[-trainList,]
+```
+
+The model will use the process of k-fold cross validation.
+```{r}
+#Setting the trainControl() so it will use k-fold cross validation.
+trctrl <- trainControl(method = "repeatedcv", number = 10)
+#Building the model using predictors we felt rock fans would care about.
+kfoldRock <- train(popular ~ energy + acousticness + valence + tempo, data = trainData, method = "svmRadial", trControl = trctrl, preProcess = c("center", "scale"))
+kfoldRock
+
+#Testing and viewing the model's accuracy.
+predictValues <- predict(kfoldRock, newdata = testData)
+confusionMatrix(predictValues, testData$popular)
+```
+
+Looking at the confusion matrix we can see that this model does not do a good job of predicting popularity. The model is only slightly better than random guessing. 
+
+Next we tried creating a logistic regression model to predict if a rock song would be popular.
+
+```{r}
+#Creating the logistic model using the same variables as in the svm model. We set family to binomial() so the glm() function will use logistic regression.
+RockGLM <- glm(popular ~ energy + acousticness + valence + tempo, family = binomial(), data = dfRock)
+summary(RockGLM)
+```
+Again, our model is not successful at predicting if a song will be popular. None of the coefficients of the variables are statistically significant so this model should not be used.
+
+Instead of trying to model popularity, which may be a very difficult task because people's preferences and the changes in those preferences are hard to predict, we instead took a look at the top 10 most popular rock songs released in the same time intervals in which we broke up the data previously.
+
+Many times artists' biographies on Spotify will include a "for fans of" section where they compare their music to more well known artists. We can predict the next song of a newly signed artist might be popular if they sound like other bands that are currently popular.
+```{r}
+#We filter the data like we did for the data containing all the genres so the data is broken up by the same time intervals.
+dfRock2005 <- dfRock %>%
+  filter(year <= 2005) %>%
+  filter(year >= 2000)
+
+dfRock2010 <- dfRock %>%
+  filter(year <= 2010) %>%
+  filter(year > 2005)
+
+dfRock2015 <- dfRock %>%
+  filter(year <= 2015) %>%
+  filter(year > 2010)
+
+dfRock2020 <- dfRock %>%
+  filter(year <= 2020) %>%
+  filter(year > 2015)
+
+#Now we arrange the data in order of decreasing popularity so the most popular songs are shown first. We are going to look at the top 10 rock songs in each time period so we use slice to include only the first 10 rows of data.
+Top10Rock2005 <- dfRock2005 %>%
+  arrange(desc(popularity)) %>%
+  slice(1:10)
+#For viewing simplicity, we will show only the artist name, song title, the popularity rating, the release year, and the duration of the songs in each top 10 list.
+Top10Rock2005 %>%
+  select(artist, song, popularity, year, duration_min)
+
+Top10Rock2010 <- dfRock2010 %>%
+  arrange(desc(popularity)) %>%
+  slice(1:10)
+
+Top10Rock2010 %>%
+  select(artist, song, popularity, year, duration_min)
+
+Top10Rock2015 <- dfRock2015 %>%
+  arrange(desc(popularity)) %>%
+  slice(1:10)
+
+Top10Rock2015 %>%
+  select(artist, song, popularity, year, duration_min)
+
+Top10Rock2020 <- dfRock2020 %>%
+  arrange(desc(popularity)) %>%
+  slice(1:10)
+
+Top10Rock2020 %>%
+  select(artist, song, popularity, year, duration_min)
+```
+
+Based on current trends we would want to sign a new artist that sounds like MGMT, Twenty One Pilots, and/or Imagine Dragons as those are most widely recognizable artists in the most recent top 10 list.
+
+Although we were not successful in using the metrics to predict popularity, it is still helpful to know the metrics of the most recent popular songs. This can be used as a guide in the song creation process as a way to improve the odds of making a popular song.
+
+```{r}
+#Summarizing the mean value of the variables that rock fans might care about the most in their music. This values are calculated using the songs with release dates between 2016 and 2020 so we can focus on the most recent trends we have data for.
+dfRockSummary <- dfRock2020 %>%
+  summarize(avgLoudness = mean(loudness, na.rm = TRUE), avgDuration = mean(duration_min, na.rm = TRUE), avgTempo = mean(tempo, na.rm = TRUE), avgValence = mean(valence, na.rm = TRUE), avgEnergy = mean(energy, na.rm = TRUE), avgAcousticness = mean(acousticness, na.rm = TRUE))
+dfRockSummary
+```
+
+### Part 6: Conclusions and Next Steps
+
+The purpose of this project was to investigate the most popular music on Spotify to identify the most likely candidate to maximize the popularity of a new song on the platform and maximize the profit returned from the investment in this artist. After investigating trends in the popularity of music over time, we discovered that listeners have begun to favor increased tempo, decreased valence, increased acousticness, increased danceability, decreased energy, and decreased duration. These trends are present across all genres. These conclusions were backed up with both traditional t-test and Bayesian analyses. The most striking result was that the durations of the most popular songs in recent years have decreased by about half a minute compared to the length of popular music of the early 2000s. 
+
+Since aside from the general trends discussed previously, the qualities of music that are most important to listeners vary so greatly by genre, we decided to see if one genre of music has been consistently more popular on average than the others. Through inferential testing we were able to conclude that, on average, rock music has been the most popular genre on Spotify. The mean popularity of songs in the rock genre is almost 3 points higher than the mean popularity of all other genres. This difference inspired us to focus on the rock genre moving forward.
+
+Rock listeners on Spotify seem to favor lower intensity and higher acousticness based on the most recent popular songs in the genre. And while we were not able to predict popularity with good accuracy using a support vector machine or logistic regression model, we are able to pinpoint the most popular recent songs and artists in the genre. We believe this information could be used in an artist description on Spotify where the artist is advertised as being for fans of these other larger name top artists. Also, by selecting an artist that will create songs with a similar overall sound as those top artists we can take advantage of Spotify's recommendation algorithms. This way without spending additional money on advertising, our new artist's songs will reach the ears of those listening to those most popular songs. That means we will be maximizing the number of people who hear the new songs giving us many opportunities of converting listeners into fans.
+
+Instead of using this investigation to produce a one-off recommendation we would like to continue this research to create a renewable and sustainable business model. We believe it would be in the best interest of the company to provide funding for the creation of software that can predict popularity, allowing us to sign more new artists while maximizing the number of successful new music releases. Since we would be consistently producing music with a very good chance of gaining traction through Spotify and reaching a very wide audience, we expect a return on investment within 3 years through the combined revenue sources of Spotify streams, albums sales, merchandise sales, and concerts.
+
